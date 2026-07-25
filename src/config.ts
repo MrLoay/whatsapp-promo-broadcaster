@@ -15,10 +15,15 @@ export const config = {
   dryRun: boolFromEnv(process.env.DRY_RUN, true),
 
   whatsapp: {
+    // 'cloud_api' = official Meta Business Platform (requires an approved WABA).
+    // 'web_js' = interim unofficial bridge (whatsapp-web.js) for use before that's set up.
+    // Switch this back to 'cloud_api' once your WABA is verified -- see SETUP_META.md.
+    provider: (process.env.WHATSAPP_PROVIDER === 'web_js' ? 'web_js' : 'cloud_api') as 'cloud_api' | 'web_js',
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? '',
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
     businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID ?? '',
     graphApiVersion: 'v20.0',
+    webjsSessionPath: process.env.WHATSAPP_WEBJS_SESSION_PATH ?? path.join(process.cwd(), 'data', 'wwebjs_auth'),
   },
 
   webhook: {

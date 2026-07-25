@@ -25,7 +25,15 @@ export function createApp(): Express {
 
 if (require.main === module) {
   const app = createApp();
+
+  if (config.whatsapp.provider === 'web_js' && !config.dryRun) {
+    // Lazy-required so a plain cloud_api/dry-run boot never pulls in Puppeteer.
+    const { getDb } = require('./db');
+    const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
+    startWebJsListeners(getDb());
+  }
+
   app.listen(config.server.port, () => {
-    console.log(`Server listening on port ${config.server.port} (DRY_RUN=${config.dryRun})`);
+    console.log(`Server listening on port ${config.server.port} (DRY_RUN=${config.dryRun}, provider=${config.whatsapp.provider})`);
   });
 }

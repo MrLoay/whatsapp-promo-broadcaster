@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { config } from '../config';
-import { sendTemplateMessage } from '../whatsapp/client';
+import { sendCampaignMessage } from '../whatsapp/dispatch';
 import { listOptedInContacts, type Contact } from './contacts';
 import { getTemplateById, type MessageTemplate } from './templates';
 
@@ -73,20 +73,28 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
 
   db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
 
-  const alreadyTargeted = new Set(
-    (db.prepare('SELECT contact_id FROM campaign_recipients WHERE campaign_id = ?').all(campaignId) as { contact_id: number }[]).map(
-      (r) => r.contact_id
-    )
+  // Only recipients already sent/delivered/read are done -- 'failed' ones are
+  // retried on the next call, so re-running a campaign fixes transient errors
+  // (e.g. the whatsapp-web.js "no message id" quirk) without creating duplicates.
+  const alreadyDone = new Set(
+    (
+      db
+        .prepare(`SELECT contact_id FROM campaign_recipients WHERE campaign_id = ? AND status != 'failed'`)
+        .all(campaignId) as { contact_id: number }[]
+    ).map((r) => r.contact_id)
   );
 
-  const candidates: Contact[] = listOptedInContacts(db).filter((c) => !alreadyTargeted.has(c.id));
+  const candidates: Contact[] = listOptedInContacts(db).filter((c) => !alreadyDone.has(c.id));
 
   const summary: SendSummary = { campaignId, totalTargeted: candidates.length, sent: 0, failed: 0, throttledOut: 0 };
   let recentlyMessaged = countRecentlyMessaged(db);
   const intervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
 
-  const insertRecipient = db.prepare(
-    `INSERT INTO campaign_recipients (campaign_id, contact_id, status, wamid, error, sent_at) VALUES (?, ?, ?, ?, ?, ?)`
+  const upsertRecipient = db.prepare(
+    `INSERT INTO campaign_recipients (campaign_id, contact_id, status, wamid, error, sent_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(campaign_id, contact_id) DO UPDATE SET
+       status = excluded.status, wamid = excluded.wamid, error = excluded.error, sent_at = excluded.sent_at`
   );
 
   for (const contact of candidates) {
@@ -96,12 +104,12 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
     }
 
     try {
-      const result = await sendTemplateMessage(contact.phone, template.meta_template_name, template.language, variableValues);
-      insertRecipient.run(campaignId, contact.id, 'sent', result.wamid, null, new Date().toISOString());
+      const result = await sendCampaignMessage(contact.phone, template, variableValues);
+      upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
       summary.sent++;
       recentlyMessaged++;
     } catch (err) {
-      insertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
+      upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
       summary.failed++;
     }
 

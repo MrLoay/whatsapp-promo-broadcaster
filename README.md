@@ -19,6 +19,10 @@ No real messages are sent; the client logs what it *would* send. Once your
 WABA is approved, follow [SETUP_META.md](./SETUP_META.md) and flip
 `DRY_RUN=false`.
 
+Need to send real broadcasts *before* your WABA is approved? There's an
+interim `web_js` provider (unofficial, ToS-violating, ban risk) — see
+[WEBJS_INTERIM.md](./WEBJS_INTERIM.md) before using it.
+
 ## Setup
 
 ```

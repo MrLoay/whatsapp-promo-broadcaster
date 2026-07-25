@@ -4,8 +4,7 @@ import { getDb } from '../db';
 import { verifyWebhookSignature } from '../whatsapp/signature';
 import { markOptedOut } from '../services/contacts';
 import { recordDeliveryStatus } from '../services/campaigns';
-
-const OPT_OUT_KEYWORDS = ['stop', 'unsubscribe', 'إلغاء الاشتراك', 'الغاء'];
+import { isOptOutMessage } from '../services/optOut';
 
 export const webhookRouter = Router();
 
@@ -45,7 +44,7 @@ webhookRouter.post('/webhook', raw({ type: 'application/json' }), (req, res) => 
       for (const message of value.messages ?? []) {
         const body: string = message.text?.body ?? '';
         const phone: string = message.from?.startsWith('+') ? message.from : `+${message.from}`;
-        const isOptOut = OPT_OUT_KEYWORDS.some((kw) => body.toLowerCase().includes(kw));
+        const isOptOut = isOptOutMessage(body);
 
         db.prepare(
           `INSERT INTO inbound_messages (contact_phone, body, triggered_opt_out) VALUES (?, ?, ?)`

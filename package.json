@@ -6,23 +6,27 @@
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').copyFileSync('src/db/schema.sql','dist/src/db/schema.sql')\"",
     "start": "node dist/server.js",
     "dev": "ts-node src/server.ts",
     "test": "vitest run",
     "import": "ts-node src/cli/import-contacts.ts",
-    "send": "ts-node src/cli/send-campaign.ts"
+    "send": "ts-node src/cli/send-campaign.ts",
+    "whatsapp:login": "ts-node src/cli/webjs-login.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
     "csv-parse": "^5.5.6",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.9",
+    "@types/qrcode-terminal": "^0.12.2",
     "@types/supertest": "^6.0.2",
     "supertest": "^7.0.0",
     "ts-node": "^10.9.2",

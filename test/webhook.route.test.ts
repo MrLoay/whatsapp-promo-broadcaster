@@ -39,7 +39,7 @@ describe('webhook route', () => {
 
   it('updates campaign_recipients status on a delivery status webhook event', async () => {
     importContactsFromCsv(db, `phone,name,opted_in\n+15551111111,Alice,true`);
-    const template = registerTemplate(db, 'summer-sale', 'summer_sale_promo', 'en_US', 1);
+    const template = registerTemplate(db, { name: 'summer-sale', metaTemplateName: 'summer_sale_promo', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
     const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
     await sendCampaign(db, campaign.id);
 

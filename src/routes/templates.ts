@@ -9,12 +9,18 @@ templatesRouter.get('/templates', (_req, res) => {
 });
 
 templatesRouter.post('/templates', (req, res) => {
-  const { name, metaTemplateName, language, variableCount } = req.body ?? {};
-  if (!name || !metaTemplateName) {
-    return res.status(400).json({ error: 'name and metaTemplateName are required' });
+  const { name, metaTemplateName, bodyText, language, variableCount } = req.body ?? {};
+  if (!name) {
+    return res.status(400).json({ error: 'name is required' });
   }
   try {
-    const template = registerTemplate(getDb(), name, metaTemplateName, language ?? 'en_US', variableCount ?? 0);
+    const template = registerTemplate(getDb(), {
+      name,
+      metaTemplateName,
+      bodyText,
+      language: language ?? 'en_US',
+      variableCount: variableCount ?? 0,
+    });
     res.status(201).json(template);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

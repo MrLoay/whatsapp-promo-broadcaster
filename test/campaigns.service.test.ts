@@ -17,7 +17,7 @@ describe('campaigns service (DRY_RUN)', () => {
   });
 
   it('creates a campaign and validates variable count against the template', () => {
-    const template = registerTemplate(db, 'summer-sale', 'summer_sale_promo', 'en_US', 1);
+    const template = registerTemplate(db, { name: 'summer-sale', metaTemplateName: 'summer_sale_promo', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
     const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
     expect(campaign.status).toBe('draft');
 
@@ -25,7 +25,7 @@ describe('campaigns service (DRY_RUN)', () => {
   });
 
   it('sends only to opted-in contacts and records recipient rows (dry run, no network)', async () => {
-    const template = registerTemplate(db, 'summer-sale', 'summer_sale_promo', 'en_US', 1);
+    const template = registerTemplate(db, { name: 'summer-sale', metaTemplateName: 'summer_sale_promo', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
     const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
 
     const summary = await sendCampaign(db, campaign.id);
@@ -43,7 +43,7 @@ describe('campaigns service (DRY_RUN)', () => {
   });
 
   it('is idempotent: re-sending a completed campaign does not duplicate recipients', async () => {
-    const template = registerTemplate(db, 'summer-sale', 'summer_sale_promo', 'en_US', 1);
+    const template = registerTemplate(db, { name: 'summer-sale', metaTemplateName: 'summer_sale_promo', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
     const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
 
     await sendCampaign(db, campaign.id);
@@ -55,7 +55,7 @@ describe('campaigns service (DRY_RUN)', () => {
   });
 
   it('recordDeliveryStatus updates recipient status by wamid', async () => {
-    const template = registerTemplate(db, 'summer-sale', 'summer_sale_promo', 'en_US', 1);
+    const template = registerTemplate(db, { name: 'summer-sale', metaTemplateName: 'summer_sale_promo', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
     const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
     await sendCampaign(db, campaign.id);
 

@@ -3,3 +3,7 @@ dist/
 .env
 data/
 *.log
+.wwebjs_cache/
+
+# Real contact data never belongs in a public repo -- only the sample stays tracked.
+contacts.csv

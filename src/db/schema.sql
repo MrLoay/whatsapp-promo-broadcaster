@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS contacts (
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,            -- local reference name
-  meta_template_name TEXT NOT NULL,     -- must match the name approved in Meta Business Manager
+  meta_template_name TEXT,              -- required for the cloud_api provider: must match the name approved in Meta Business Manager
+  body_text TEXT,                       -- required for the web_js provider: free-form text with {{1}}, {{2}}, ... placeholders
   language TEXT NOT NULL DEFAULT 'en_US',
   variable_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
