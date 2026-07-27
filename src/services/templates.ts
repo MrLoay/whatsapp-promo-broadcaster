@@ -7,6 +7,7 @@ export interface MessageTemplate {
   body_text: string | null;
   language: string;
   variable_count: number;
+  personalize_name: number;
 }
 
 export interface RegisterTemplateInput {
@@ -17,6 +18,8 @@ export interface RegisterTemplateInput {
   metaTemplateName?: string;
   /** Required if you'll send this template via the web_js provider: free text with {{1}}, {{2}}, ... placeholders. */
   bodyText?: string;
+  /** If true, {{1}} is auto-filled per recipient from contacts.name at send time instead of a fixed campaign-wide value. */
+  personalizeName?: boolean;
 }
 
 /**
@@ -32,14 +35,15 @@ export function registerTemplate(db: Database.Database, input: RegisterTemplateI
   }
   const info = db
     .prepare(
-      `INSERT INTO templates (name, meta_template_name, body_text, language, variable_count) VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO templates (name, meta_template_name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?, ?)`
     )
     .run(
       input.name,
       input.metaTemplateName ?? null,
       input.bodyText ?? null,
       input.language ?? 'en_US',
-      input.variableCount ?? 0
+      input.variableCount ?? 0,
+      input.personalizeName ? 1 : 0
     );
   return getTemplateById(db, info.lastInsertRowid as number)!;
 }

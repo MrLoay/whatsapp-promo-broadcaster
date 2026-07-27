@@ -17,9 +17,9 @@
       <form id="createForm">
         <label>Name</label>
         <input name="name" required style="width:100%; margin-bottom:10px;" />
-        <label>Template</label>
-        <select name="templateId" id="templateSelect" required style="width:100%; margin-bottom:10px;"></select>
-        <div id="variableInputs"></div>
+        <label>Message</label>
+        <textarea name="message" required placeholder="Hi {{name}}, enjoy 20% off this week! Reply STOP to unsubscribe."></textarea>
+        <p class="muted">Use <code>{{name}}</code> anywhere and each contact's own name is filled in automatically.</p>
         <button type="submit">Create campaign (draft)</button>
       </form>
       <div class="error" id="createError"></div>
@@ -29,7 +29,7 @@
       <h2>All campaigns</h2>
       <table>
         <thead>
-          <tr><th>Name</th><th>Template</th><th>Status</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Failed</th><th></th></tr>
+          <tr><th>Name</th><th>Status</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Failed</th><th></th></tr>
         </thead>
         <tbody id="campaignsBody"></tbody>
       </table>
@@ -37,38 +37,12 @@
   </main>
   <script src="app.js"></script>
   <script>
-    let templates = [];
-
-    function renderVariableInputs() {
-      const templateId = Number(document.getElementById('templateSelect').value);
-      const template = templates.find((t) => t.id === templateId);
-      const container = document.getElementById('variableInputs');
-      if (!template || template.variable_count === 0) {
-        container.innerHTML = '';
-        return;
-      }
-      container.innerHTML =
-        `<p class="muted">This template needs ${template.variable_count} variable(s), in order:</p>` +
-        Array.from({ length: template.variable_count })
-          .map((_, i) => `<input class="varInput" placeholder="{{${i + 1}}} value" style="margin:0 6px 10px 0;" />`)
-          .join('');
-    }
-
-    async function loadTemplatesIntoSelect() {
-      templates = await api('/templates');
-      const select = document.getElementById('templateSelect');
-      select.innerHTML = templates.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
-      select.onchange = renderVariableInputs;
-      renderVariableInputs();
-    }
-
     async function loadCampaigns() {
       const campaigns = await api('/campaigns');
       document.getElementById('campaignsBody').innerHTML = campaigns
         .map(
           (c) => `<tr>
             <td><a class="link" href="campaign.html?id=${c.id}">${escapeHtml(c.name)}</a></td>
-            <td class="muted">${escapeHtml(c.template_name || '')}</td>
             <td><span class="badge ${c.status}">${c.status}</span></td>
             <td>${c.sent || 0}</td>
             <td>${c.delivered || 0}</td>
@@ -100,18 +74,12 @@
       const form = e.target;
       const errorEl = document.getElementById('createError');
       errorEl.textContent = '';
-      const variableValues = Array.from(document.querySelectorAll('.varInput')).map((i) => i.value);
       try {
-        await api('/campaigns', {
+        await api('/campaigns/quick', {
           method: 'POST',
-          body: JSON.stringify({
-            name: form.name.value.trim(),
-            templateId: Number(form.templateId.value),
-            variableValues,
-          }),
+          body: JSON.stringify({ name: form.name.value.trim(), message: form.message.value.trim() }),
         });
         form.reset();
-        await loadTemplatesIntoSelect();
         await loadCampaigns();
       } catch (err) {
         errorEl.textContent = err.message;
@@ -120,7 +88,6 @@
 
     (async () => {
       await renderNav('campaigns.html');
-      await loadTemplatesIntoSelect();
       await loadCampaigns();
     })();
   </script>

@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { config } from '../config';
 import { sendCampaignMessage } from '../whatsapp/dispatch';
 import { listOptedInContacts, type Contact } from './contacts';
-import { getTemplateById, type MessageTemplate } from './templates';
+import { getTemplateById, registerTemplate, type MessageTemplate } from './templates';
 
 export interface Campaign {
   id: number;
@@ -29,7 +29,9 @@ export function createCampaign(
 ): Campaign {
   const template = getTemplateById(db, templateId);
   if (!template) throw new Error(`Template ${templateId} not found`);
-  if (variableValues.length !== template.variable_count) {
+  // personalize_name templates get their {{1}} filled per-recipient at send
+  // time from contacts.name, so a fixed campaign-wide value isn't required.
+  if (!template.personalize_name && variableValues.length !== template.variable_count) {
     throw new Error(
       `Template "${template.name}" expects ${template.variable_count} variable(s), got ${variableValues.length}`
     );
@@ -38,6 +40,27 @@ export function createCampaign(
     .prepare(`INSERT INTO campaigns (name, template_id, variable_values) VALUES (?, ?, ?)`)
     .run(name, templateId, JSON.stringify(variableValues));
   return getCampaignById(db, info.lastInsertRowid as number)!;
+}
+
+/**
+ * Simplified campaign creation for the dashboard: just a name and a message,
+ * no separate template management step. If the message contains {{name}},
+ * it's rewritten to the templates.body_text placeholder convention ({{1}})
+ * and marked personalize_name so each recipient gets their own name filled
+ * in automatically at send time.
+ */
+export function createQuickCampaign(db: Database.Database, name: string, message: string): Campaign {
+  const personalizeName = message.includes('{{name}}');
+  const bodyText = personalizeName ? message.replace(/\{\{name\}\}/g, '{{1}}') : message;
+
+  const template = registerTemplate(db, {
+    name: `${name}-${Date.now()}`,
+    bodyText,
+    variableCount: personalizeName ? 1 : 0,
+    personalizeName,
+  });
+
+  return createCampaign(db, name, template.id, []);
 }
 
 export function getCampaignById(db: Database.Database, id: number): Campaign | undefined {
@@ -119,7 +142,7 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
   const campaign = getCampaignById(db, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
   const template = getTemplateById(db, campaign.template_id) as MessageTemplate;
-  const variableValues: string[] = JSON.parse(campaign.variable_values ?? '[]');
+  const fixedVariableValues: string[] = JSON.parse(campaign.variable_values ?? '[]');
 
   db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
 
@@ -154,6 +177,7 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
     }
 
     try {
+      const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
       const result = await sendCampaignMessage(contact.phone, template, variableValues);
       upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
       summary.sent++;

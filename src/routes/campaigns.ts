@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../db';
 import {
   createCampaign,
+  createQuickCampaign,
   getCampaignById,
   sendCampaign,
   listCampaignsWithStats,
@@ -33,6 +34,21 @@ campaignsRouter.post('/campaigns', (req, res) => {
   }
   try {
     const campaign = createCampaign(getDb(), name, templateId, variableValues ?? []);
+    res.status(201).json(campaign);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// Simplified creation for the dashboard: just a name + message, no separate
+// template step. Use {{name}} in the message to auto-personalize per contact.
+campaignsRouter.post('/campaigns/quick', (req, res) => {
+  const { name, message } = req.body ?? {};
+  if (!name || !message) {
+    return res.status(400).json({ error: 'name and message are required' });
+  }
+  try {
+    const campaign = createQuickCampaign(getDb(), name, message);
     res.status(201).json(campaign);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

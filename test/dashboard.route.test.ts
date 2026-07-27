@@ -62,4 +62,10 @@ describe('dashboard-facing routes', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].triggered_opt_out).toBe(1);
   });
+
+  it('GET /whatsapp/status reports not_applicable on the cloud_api provider', async () => {
+    const res = await agent.get('/whatsapp/status');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ provider: 'cloud_api', status: 'not_applicable' });
+  });
 });

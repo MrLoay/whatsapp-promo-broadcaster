@@ -1,9 +1,19 @@
 import { Client, LocalAuth, type Message } from 'whatsapp-web.js';
-import qrcode from 'qrcode-terminal';
+import qrcodeTerminal from 'qrcode-terminal';
 import { config } from '../config';
 
 let client: Client | null = null;
 let readyPromise: Promise<Client> | null = null;
+
+export type ConnectionStatus = 'idle' | 'qr' | 'authenticated' | 'ready' | 'error';
+
+let connectionStatus: ConnectionStatus = 'idle';
+let latestQr: string | null = null;
+let lastError: string | null = null;
+
+export function getConnectionState(): { status: ConnectionStatus; qr: string | null; error: string | null } {
+  return { status: connectionStatus, qr: connectionStatus === 'qr' ? latestQr : null, error: lastError };
+}
 
 /**
  * Unofficial interim bridge (drives a real WhatsApp Web session via
@@ -27,16 +37,35 @@ export function ensureReady(): Promise<Client> {
   const c = getWebJsClient();
   readyPromise = new Promise((resolve, reject) => {
     c.on('qr', (qr) => {
+      connectionStatus = 'qr';
+      latestQr = qr;
       console.log('\nScan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n');
-      qrcode.generate(qr, { small: true });
+      qrcodeTerminal.generate(qr, { small: true });
     });
-    c.on('authenticated', () => console.log('whatsapp-web.js: authenticated, session saved for next time.'));
-    c.on('auth_failure', (msg) => reject(new Error(`whatsapp-web.js auth failure: ${msg}`)));
+    c.on('authenticated', () => {
+      connectionStatus = 'authenticated';
+      latestQr = null;
+      console.log('whatsapp-web.js: authenticated, session saved for next time.');
+    });
+    c.on('auth_failure', (msg) => {
+      connectionStatus = 'error';
+      lastError = msg;
+      reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
+    });
     c.on('ready', () => {
+      connectionStatus = 'ready';
+      latestQr = null;
       console.log('whatsapp-web.js: client ready.');
       resolve(c);
     });
-    c.initialize().catch(reject);
+    c.on('disconnected', () => {
+      connectionStatus = 'idle';
+    });
+    c.initialize().catch((err) => {
+      connectionStatus = 'error';
+      lastError = err.message;
+      reject(err);
+    });
   });
 
   return readyPromise;

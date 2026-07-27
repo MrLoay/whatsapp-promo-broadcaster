@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS templates (
   body_text TEXT,                       -- required for the web_js provider: free-form text with {{1}}, {{2}}, ... placeholders
   language TEXT NOT NULL DEFAULT 'en_US',
   variable_count INTEGER NOT NULL DEFAULT 0,
+  personalize_name INTEGER NOT NULL DEFAULT 0, -- if true, {{1}} is auto-filled per recipient from contacts.name at send time
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
