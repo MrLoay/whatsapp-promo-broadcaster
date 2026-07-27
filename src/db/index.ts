@@ -3,6 +3,23 @@ import fs from 'fs';
 import path from 'path';
 import { config } from '../config';
 
+// CREATE TABLE IF NOT EXISTS in schema.sql only handles brand-new databases --
+// it never adds columns to a table that already exists from a prior deploy.
+// Each entry here is applied idempotently (checked against the live schema)
+// so upgrading an existing database is automatic instead of a manual step.
+const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
+  { table: 'templates', column: 'personalize_name', ddl: 'ALTER TABLE templates ADD COLUMN personalize_name INTEGER NOT NULL DEFAULT 0' },
+];
+
+function applyColumnMigrations(db: Database.Database): void {
+  for (const { table, column, ddl } of COLUMN_MIGRATIONS) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === column)) {
+      db.exec(ddl);
+    }
+  }
+}
+
 export function openDb(dbPath: string = config.db.path): Database.Database {
   if (dbPath !== ':memory:') {
     const dir = path.dirname(dbPath);
@@ -13,6 +30,7 @@ export function openDb(dbPath: string = config.db.path): Database.Database {
   db.pragma('foreign_keys = ON');
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8');
   db.exec(schema);
+  applyColumnMigrations(db);
   return db;
 }
 
