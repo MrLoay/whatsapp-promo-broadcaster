@@ -1,13 +1,29 @@
 import { Router } from 'express';
 import { getDb } from '../db';
-import { createCampaign, getCampaignById, sendCampaign } from '../services/campaigns';
+import {
+  createCampaign,
+  getCampaignById,
+  sendCampaign,
+  listCampaignsWithStats,
+  getCampaignRecipients,
+} from '../services/campaigns';
+import { requireAuth } from '../auth';
 
 export const campaignsRouter = Router();
+campaignsRouter.use(requireAuth);
+
+campaignsRouter.get('/campaigns', (_req, res) => {
+  res.json(listCampaignsWithStats(getDb()));
+});
 
 campaignsRouter.get('/campaigns/:id', (req, res) => {
   const campaign = getCampaignById(getDb(), Number(req.params.id));
   if (!campaign) return res.sendStatus(404);
   res.json(campaign);
+});
+
+campaignsRouter.get('/campaigns/:id/recipients', (req, res) => {
+  res.json(getCampaignRecipients(getDb(), Number(req.params.id)));
 });
 
 campaignsRouter.post('/campaigns', (req, res) => {

@@ -43,6 +43,13 @@ export const config = {
     tierLimitPer24h: intFromEnv(process.env.TIER_LIMIT_PER_24H, 250),
     messagesPerSecond: intFromEnv(process.env.MESSAGES_PER_SECOND, 5),
   },
+
+  dashboard: {
+    // Session cookie signing secret -- set a long random value in production.
+    sessionSecret: process.env.SESSION_SECRET ?? 'dev-only-insecure-secret-change-me',
+    // JSON array of {"username":"...","passwordHash":"..."} -- generate hashes with `npm run hash-password -- <plaintext>`.
+    users: process.env.DASHBOARD_USERS ?? '[]',
+  },
 };
 
 export function assertLiveCredentials(): void {

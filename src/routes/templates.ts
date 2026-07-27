@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { getDb } from '../db';
 import { registerTemplate, listTemplates } from '../services/templates';
+import { requireAuth } from '../auth';
 
 export const templatesRouter = Router();
+templatesRouter.use(requireAuth);
 
 templatesRouter.get('/templates', (_req, res) => {
   res.json(listTemplates(getDb()));

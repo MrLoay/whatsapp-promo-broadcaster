@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard - Boutique Broadcast</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav id="nav"></nav>
+  <div class="mode-banner" id="mode-banner"></div>
+  <main>
+    <h1>Overview</h1>
+    <div class="stat-row" id="stats"></div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    (async () => {
+      await renderNav('index.html');
+      const [contacts, campaigns, templates] = await Promise.all([
+        api('/contacts'),
+        api('/campaigns'),
+        api('/templates'),
+      ]);
+      const optedIn = contacts.filter((c) => c.opt_in_status === 'opted_in').length;
+      const optedOut = contacts.filter((c) => c.opt_in_status === 'opted_out').length;
+      const stats = [
+        ['Contacts', contacts.length],
+        ['Opted in', optedIn],
+        ['Opted out', optedOut],
+        ['Templates', templates.length],
+        ['Campaigns', campaigns.length],
+      ];
+      document.getElementById('stats').innerHTML = stats
+        .map(([label, n]) => `<div class="stat"><div class="n">${n}</div><div class="label">${label}</div></div>`)
+        .join('');
+    })();
+  </script>
+</body>
+</html>

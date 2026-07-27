@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { getDb } from '../db';
-import { importContactsFromCsv, listOptedInContacts } from '../services/contacts';
+import { importContactsFromCsv, listOptedInContacts, upsertContact, getContactByPhone } from '../services/contacts';
+import { requireAuth } from '../auth';
 
 export const contactsRouter = Router();
+contactsRouter.use(requireAuth);
 
 contactsRouter.get('/contacts', (_req, res) => {
   const db = getDb();
@@ -11,6 +13,19 @@ contactsRouter.get('/contacts', (_req, res) => {
 
 contactsRouter.get('/contacts/opted-in', (_req, res) => {
   res.json(listOptedInContacts(getDb()));
+});
+
+contactsRouter.post('/contacts', (req, res) => {
+  const { phone, name, opted_in } = req.body ?? {};
+  if (!/^\+[1-9]\d{6,14}$/.test(phone ?? '')) {
+    return res.status(400).json({ error: 'phone must be E.164 format, e.g. +15551234567' });
+  }
+  try {
+    upsertContact(getDb(), phone, name, Boolean(opted_in), 'dashboard');
+    res.status(201).json(getContactByPhone(getDb(), phone));
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
 });
 
 // Body: raw CSV text, header row: phone,name,opted_in

@@ -1,9 +1,13 @@
 import express, { type Express } from 'express';
+import path from 'path';
+import session from 'express-session';
 import { config } from './config';
 import { webhookRouter } from './routes/webhook';
 import { contactsRouter } from './routes/contacts';
 import { templatesRouter } from './routes/templates';
 import { campaignsRouter } from './routes/campaigns';
+import { inboundRouter } from './routes/inbound';
+import { authRouter } from './auth';
 
 export function createApp(): Express {
   const app = express();
@@ -14,11 +18,34 @@ export function createApp(): Express {
 
   app.use(express.json());
   app.use(express.text({ type: 'text/csv' }));
+
+  app.use(
+    session({
+      secret: config.dashboard.sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: { secure: !config.dryRun && process.env.NODE_ENV === 'production' },
+    })
+  );
+
+  app.use(authRouter);
+
+  app.get('/health', (_req, res) => res.json({ ok: true, dryRun: config.dryRun, provider: config.whatsapp.provider }));
+
+  // Static dashboard pages are served (and requests for them terminated)
+  // before the API routers below, so login.html/style.css/etc. are reachable
+  // without a session -- the pages themselves hold no data, they just call
+  // the (auth-gated) API below and redirect to /login.html on a 401.
+  app.use(express.static(path.join(__dirname, '..', 'public')));
+
+  // Each of these routers requires auth internally (router.use(requireAuth))
+  // since sends messages, manages contacts, or reads business data -- the
+  // dashboard is meant to be reachable remotely by more than just the person
+  // at this keyboard.
   app.use(contactsRouter);
   app.use(templatesRouter);
   app.use(campaignsRouter);
-
-  app.get('/health', (_req, res) => res.json({ ok: true, dryRun: config.dryRun }));
+  app.use(inboundRouter);
 
   return app;
 }

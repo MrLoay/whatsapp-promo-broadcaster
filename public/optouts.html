@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Opt-outs - Boutique Broadcast</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav id="nav"></nav>
+  <div class="mode-banner" id="mode-banner"></div>
+  <main>
+    <h1>Inbound messages &amp; opt-outs</h1>
+    <p class="muted">Any message containing STOP/unsubscribe automatically suppresses future sends to that contact.</p>
+    <div class="card">
+      <table>
+        <thead><tr><th>Phone</th><th>Message</th><th>Opt-out?</th><th>Received</th></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    (async () => {
+      await renderNav('optouts.html');
+      const messages = await api('/inbound-messages');
+      document.getElementById('body').innerHTML = messages
+        .map(
+          (m) => `<tr>
+            <td>${escapeHtml(m.contact_phone)}</td>
+            <td>${escapeHtml(m.body || '')}</td>
+            <td>${m.triggered_opt_out ? '<span class="badge opted_out">opted out</span>' : ''}</td>
+            <td class="muted">${escapeHtml(m.received_at)}</td>
+          </tr>`
+        )
+        .join('');
+    })();
+  </script>
+</body>
+</html>

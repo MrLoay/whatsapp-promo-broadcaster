@@ -44,6 +44,56 @@ export function getCampaignById(db: Database.Database, id: number): Campaign | u
   return db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as Campaign | undefined;
 }
 
+export interface CampaignWithStats extends Campaign {
+  template_name: string;
+  sent: number;
+  delivered: number;
+  read: number;
+  failed: number;
+}
+
+export function listCampaignsWithStats(db: Database.Database): CampaignWithStats[] {
+  return db
+    .prepare(
+      `SELECT c.*, t.name as template_name,
+         SUM(CASE WHEN cr.status = 'sent' THEN 1 ELSE 0 END) as sent,
+         SUM(CASE WHEN cr.status = 'delivered' THEN 1 ELSE 0 END) as delivered,
+         SUM(CASE WHEN cr.status = 'read' THEN 1 ELSE 0 END) as read,
+         SUM(CASE WHEN cr.status = 'failed' THEN 1 ELSE 0 END) as failed
+       FROM campaigns c
+       LEFT JOIN templates t ON t.id = c.template_id
+       LEFT JOIN campaign_recipients cr ON cr.campaign_id = c.id
+       GROUP BY c.id
+       ORDER BY c.id DESC`
+    )
+    .all() as CampaignWithStats[];
+}
+
+export interface CampaignRecipientDetail {
+  id: number;
+  contact_id: number;
+  phone: string;
+  name: string | null;
+  status: string;
+  wamid: string | null;
+  error: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  read_at: string | null;
+}
+
+export function getCampaignRecipients(db: Database.Database, campaignId: number): CampaignRecipientDetail[] {
+  return db
+    .prepare(
+      `SELECT cr.id, cr.contact_id, ct.phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at
+       FROM campaign_recipients cr
+       JOIN contacts ct ON ct.id = cr.contact_id
+       WHERE cr.campaign_id = ?
+       ORDER BY cr.id`
+    )
+    .all(campaignId) as CampaignRecipientDetail[];
+}
+
 function countRecentlyMessaged(db: Database.Database): number {
   // Unique contacts sent a message (any campaign) in the last 24h -- proxy for tier usage.
   const row = db

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Templates - Boutique Broadcast</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav id="nav"></nav>
+  <div class="mode-banner" id="mode-banner"></div>
+  <main>
+    <h1>Templates</h1>
+
+    <div class="card">
+      <h2>New template</h2>
+      <p class="muted">
+        Use <code>{{1}}</code>, <code>{{2}}</code>, ... as placeholders. <strong>bodyText</strong> is required if you're
+        sending via the web_js provider (it's the literal message sent). <strong>metaTemplateName</strong> is required
+        for the official cloud_api provider and must exactly match a template approved in Meta Business Manager.
+      </p>
+      <form id="createForm">
+        <label>Name (local reference)</label>
+        <input name="name" required style="width:100%; margin-bottom:10px;" />
+        <label>Body text (for web_js / your reference)</label>
+        <textarea name="bodyText" placeholder="Hi {{1}}, enjoy {{2}} off this week! Reply STOP to unsubscribe."></textarea>
+        <label style="margin-top:10px;">Meta template name (for cloud_api, optional otherwise)</label>
+        <input name="metaTemplateName" style="width:100%; margin-bottom:10px;" />
+        <label>Number of variables</label>
+        <input name="variableCount" type="number" min="0" value="0" style="width:100px; margin-bottom:10px;" />
+        <br />
+        <button type="submit">Create template</button>
+      </form>
+      <div class="error" id="createError"></div>
+    </div>
+
+    <div class="card">
+      <h2>All templates</h2>
+      <table>
+        <thead><tr><th>Name</th><th>Body text</th><th>Meta name</th><th>Vars</th></tr></thead>
+        <tbody id="templatesBody"></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    async function loadTemplates() {
+      const templates = await api('/templates');
+      document.getElementById('templatesBody').innerHTML = templates
+        .map(
+          (t) => `<tr>
+            <td>${escapeHtml(t.name)}</td>
+            <td class="muted">${escapeHtml(t.body_text || '')}</td>
+            <td class="muted">${escapeHtml(t.meta_template_name || '')}</td>
+            <td>${t.variable_count}</td>
+          </tr>`
+        )
+        .join('');
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('createError');
+      errorEl.textContent = '';
+      try {
+        await api('/templates', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: form.name.value.trim(),
+            bodyText: form.bodyText.value.trim() || undefined,
+            metaTemplateName: form.metaTemplateName.value.trim() || undefined,
+            variableCount: Number(form.variableCount.value) || 0,
+          }),
+        });
+        form.reset();
+        await loadTemplates();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    (async () => {
+      await renderNav('templates.html');
+      await loadTemplates();
+    })();
+  </script>
+</body>
+</html>

@@ -1,4 +1,8 @@
 import { defineConfig } from 'vitest/config';
+import bcrypt from 'bcryptjs';
+
+// Fixed test credentials: username "testuser", password "testpass123".
+const TEST_USERS = JSON.stringify([{ username: 'testuser', passwordHash: bcrypt.hashSync('testpass123', 4) }]);
 
 export default defineConfig({
   test: {
@@ -9,6 +13,8 @@ export default defineConfig({
     env: {
       DRY_RUN: 'true',
       WHATSAPP_PROVIDER: 'cloud_api',
+      SESSION_SECRET: 'test-session-secret',
+      DASHBOARD_USERS: TEST_USERS,
     },
   },
 });
