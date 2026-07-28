@@ -25,7 +25,15 @@ export function getWebJsClient(): Client {
   if (!client) {
     client = new Client({
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath }),
-      puppeteer: { headless: true },
+      puppeteer: {
+        headless: true,
+        // Chrome refuses to start as root without this (common on VPS/container
+        // deployments running as root): "Running as root without --no-sandbox
+        // is not supported." This app only ever navigates to WhatsApp Web's own
+        // origin, not arbitrary untrusted sites, so the reduced sandboxing is
+        // an acceptable tradeoff here.
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      },
     });
   }
   return client;
