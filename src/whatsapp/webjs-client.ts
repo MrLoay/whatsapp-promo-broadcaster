@@ -31,6 +31,17 @@ export function getWebJsClient(): Client {
   return client;
 }
 
+function resetForRetry(): void {
+  // A failed launch/auth attempt must not be cached forever -- otherwise the
+  // dashboard's "Connect" button looks like it retries but silently returns
+  // the same stale rejected promise every time (confirmed: identical error
+  // text on repeated clicks after fixing the underlying cause). Clearing
+  // both lets the next ensureReady() call build a fresh Client and actually
+  // try again.
+  client = null;
+  readyPromise = null;
+}
+
 export function ensureReady(): Promise<Client> {
   if (readyPromise) return readyPromise;
 
@@ -50,6 +61,7 @@ export function ensureReady(): Promise<Client> {
     c.on('auth_failure', (msg) => {
       connectionStatus = 'error';
       lastError = msg;
+      resetForRetry();
       reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
     });
     c.on('ready', () => {
@@ -60,10 +72,12 @@ export function ensureReady(): Promise<Client> {
     });
     c.on('disconnected', () => {
       connectionStatus = 'idle';
+      resetForRetry();
     });
     c.initialize().catch((err) => {
       connectionStatus = 'error';
       lastError = err.message;
+      resetForRetry();
       reject(err);
     });
   });
