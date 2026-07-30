@@ -16,7 +16,6 @@ export interface Contact {
 export interface ImportRow {
   phone: string;
   name?: string;
-  skip: boolean;
 }
 
 export interface ImportResult {
@@ -27,36 +26,31 @@ export interface ImportResult {
 
 const E164_RE = /^\+[1-9]\d{6,14}$/;
 
-/** Every contact is messageable by default -- pass skip=true to exclude them instead. */
-export function upsertContact(
-  db: Database.Database,
-  phone: string,
-  name: string | undefined,
-  skip: boolean,
-  source: string
-): 'inserted' | 'updated' {
+/**
+ * Every contact added here is messageable -- the boutique owner is expected
+ * to only add numbers of people they've already been in contact with. The
+ * one automatic exception is a STOP reply (see markOptedOut), which always
+ * overrides this.
+ */
+export function upsertContact(db: Database.Database, phone: string, name: string | undefined, source: string): 'inserted' | 'updated' {
   const existing = db.prepare('SELECT id FROM contacts WHERE phone = ?').get(phone) as { id: number } | undefined;
   const now = new Date().toISOString();
-  const status = skip ? 'opted_out' : 'opted_in';
 
   if (existing) {
     db.prepare(
-      `UPDATE contacts SET name = COALESCE(?, name), opt_in_status = ?, opt_in_source = ?, opt_in_at = ?, updated_at = ? WHERE id = ?`
-    ).run(name ?? null, status, source, now, now, existing.id);
+      `UPDATE contacts SET name = COALESCE(?, name), opt_in_status = 'opted_in', opt_in_source = ?, opt_in_at = ?, updated_at = ? WHERE id = ?`
+    ).run(name ?? null, source, now, now, existing.id);
     return 'updated';
   }
 
   db.prepare(
     `INSERT INTO contacts (phone, name, opt_in_status, opt_in_source, opt_in_at)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(phone, name ?? null, status, source, now);
+     VALUES (?, ?, 'opted_in', ?, ?)`
+  ).run(phone, name ?? null, source, now);
   return 'inserted';
 }
 
-/**
- * CSV must have columns: phone, name (optional), skip (true/false). Everyone
- * is messageable by default -- mark skip=true for anyone who shouldn't be.
- */
+/** CSV must have columns: phone, name (optional). Every valid row is added as messageable. */
 export function importContactsFromCsv(db: Database.Database, csvContent: string, source = 'csv_import'): ImportResult {
   const rows = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
   const result: ImportResult = { inserted: 0, updated: 0, skipped: [] };
@@ -68,8 +62,7 @@ export function importContactsFromCsv(db: Database.Database, csvContent: string,
         result.skipped.push({ phone: phone || '(empty)', reason: 'invalid phone format, expected E.164 e.g. +15551234567' });
         continue;
       }
-      const skip = ['true', '1', 'yes'].includes((row.skip ?? '').trim().toLowerCase());
-      const outcome = upsertContact(db, phone, row.name, skip, source);
+      const outcome = upsertContact(db, phone, row.name, source);
       result[outcome === 'inserted' ? 'inserted' : 'updated']++;
     }
   });

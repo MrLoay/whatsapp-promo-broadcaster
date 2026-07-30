@@ -23,9 +23,6 @@
           <label data-i18n="contacts.add.name">Name</label>
           <input name="name" />
         </div>
-        <div>
-          <label><input type="checkbox" name="skip" style="width:auto" /> <span data-i18n="contacts.add.skip">Skip (don't message this person)</span></label>
-        </div>
         <button type="submit" data-i18n="contacts.add.button">Add</button>
       </form>
       <div class="error" id="addError"></div>
@@ -33,14 +30,13 @@
 
     <div class="card">
       <h2 data-i18n="contacts.bulk.title">Add many contacts at once</h2>
-      <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can type or paste a whole list below. Put one contact on each line, in this order: phone number, name, skip.</p>
-      <p class="muted" data-i18n="contacts.bulk.skipHelp">For "skip": write false if you want to message this person, or true if you do NOT want to message them.</p>
+      <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can type or paste a whole list below. Put one contact on each line, in this order: phone number, name.</p>
       <div class="card" style="background:var(--bg); margin-bottom:12px;">
         <p class="muted" style="margin:0 0 6px;" data-i18n="contacts.bulk.exampleLabel">Example (copy this pattern):</p>
-        <code>phone,name,skip<br />+15551234567,Alice,false<br />+15559876543,Bob,true</code>
+        <code>phone,name<br />+15551234567,Alice<br />+15559876543,Bob</code>
       </div>
       <form id="importForm">
-        <textarea name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name,skip"></textarea><br /><br />
+        <textarea name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name"></textarea><br /><br />
         <button type="submit" data-i18n="contacts.bulk.button">Add these contacts</button>
       </form>
       <div class="error" id="importError"></div>
@@ -55,7 +51,6 @@
             <th data-i18n="contacts.table.phone">Phone</th>
             <th data-i18n="contacts.table.name">Name</th>
             <th data-i18n="contacts.table.status">Status</th>
-            <th data-i18n="contacts.table.source">Source</th>
             <th></th>
           </tr>
         </thead>
@@ -76,7 +71,6 @@
             <td>${escapeHtml(c.phone)}</td>
             <td>${escapeHtml(c.name || '')}</td>
             <td><span class="badge ${c.opt_in_status}">${statusLabel}</span></td>
-            <td class="muted">${escapeHtml(c.opt_in_source || '')}</td>
             <td><button class="danger deleteBtn" data-id="${c.id}" data-phone="${escapeHtml(c.phone)}">${t('contacts.table.delete')}</button></td>
           </tr>`;
         })
@@ -105,7 +99,6 @@
           body: JSON.stringify({
             phone: form.phone.value.trim(),
             name: form.name.value.trim() || undefined,
-            skip: form.skip.checked,
           }),
         });
         form.reset();

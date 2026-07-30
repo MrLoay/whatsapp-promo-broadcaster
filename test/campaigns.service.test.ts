@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../src/db';
-import { importContactsFromCsv } from '../src/services/contacts';
+import { importContactsFromCsv, markOptedOut } from '../src/services/contacts';
 import { registerTemplate } from '../src/services/templates';
 import { createCampaign, sendCampaign, recordDeliveryStatus, getCampaignById } from '../src/services/campaigns';
 
@@ -10,10 +10,8 @@ describe('campaigns service (DRY_RUN)', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
-    importContactsFromCsv(
-      db,
-      `phone,name,skip\n+15551111111,Alice,false\n+15552222222,Bob,false\n+15553333333,Carl,true`
-    );
+    importContactsFromCsv(db, `phone,name\n+15551111111,Alice\n+15552222222,Bob\n+15553333333,Carl`);
+    markOptedOut(db, '+15553333333'); // Carl replied STOP -- the only way to become ineligible now
   });
 
   it('creates a campaign and validates variable count against the template', () => {

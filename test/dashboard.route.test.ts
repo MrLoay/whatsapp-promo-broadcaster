@@ -20,7 +20,7 @@ describe('dashboard-facing routes', () => {
   });
 
   it('adds a single contact via POST /contacts', async () => {
-    const res = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice', skip: false });
+    const res = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice' });
     expect(res.status).toBe(201);
     expect(res.body.opt_in_status).toBe('opted_in');
 
@@ -93,13 +93,14 @@ describe('dashboard-facing routes', () => {
     expect(missing.status).toBe(404);
   });
 
-  it('POST /campaigns/send-now creates and immediately sends a campaign to all opted-in contacts', async () => {
-    await agent.post('/contacts').send({ phone: '+15551111111', name: 'Alice', skip: false });
-    await agent.post('/contacts').send({ phone: '+15552222222', name: 'Bob', skip: true });
+  it('POST /campaigns/send-now sends to all messageable contacts, skipping anyone who opted out (e.g. replied STOP)', async () => {
+    await agent.post('/contacts').send({ phone: '+15551111111', name: 'Alice' });
+    await agent.post('/contacts').send({ phone: '+15552222222', name: 'Bob' });
+    db.prepare(`UPDATE contacts SET opt_in_status = 'opted_out' WHERE phone = '+15552222222'`).run();
 
     const res = await agent.post('/campaigns/send-now').send({ message: 'Hi {{name}}, enjoy 20% off!' });
     expect(res.status).toBe(200);
-    expect(res.body.totalTargeted).toBe(1); // only Alice, Bob isn't opted in
+    expect(res.body.totalTargeted).toBe(1); // only Alice, Bob opted out
     expect(res.body.sent).toBe(1);
 
     const campaigns = await agent.get('/campaigns');
