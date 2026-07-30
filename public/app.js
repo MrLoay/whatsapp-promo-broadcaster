@@ -16,11 +16,17 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+const LANGUAGES = [
+  ['en', 'EN'],
+  ['ms', 'Bahasa Melayu'],
+  ['zh', '中文'],
+];
+
 async function renderNav(activePage) {
   const pages = [
-    ['index.html', 'Home'],
-    ['contacts.html', 'Contacts'],
-    ['whatsapp.html', 'WhatsApp'],
+    ['index.html', 'nav.home'],
+    ['contacts.html', 'nav.contacts'],
+    ['whatsapp.html', 'nav.whatsapp'],
   ];
   const nav = document.getElementById('nav');
   let me = null;
@@ -29,23 +35,36 @@ async function renderNav(activePage) {
   } catch {
     return;
   }
+  const langOptions = LANGUAGES.map(
+    ([code, label]) => `<option value="${code}" ${code === getLang() ? 'selected' : ''}>${label}</option>`
+  ).join('');
+
   nav.innerHTML =
-    pages.map(([href, label]) => `<a href="${href}" class="${href === activePage ? 'active' : ''}">${label}</a>`).join('') +
-    `<span class="spacer"></span><span class="user">${escapeHtml(me.username)}</span><button class="logout" id="logoutBtn">Log out</button>`;
+    pages.map(([href, key]) => `<a href="${href}" class="${href === activePage ? 'active' : ''}" data-i18n="${key}"></a>`).join('') +
+    `<span class="spacer"></span>` +
+    `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
+    `<span class="user">${escapeHtml(me.username)}</span><button class="logout" id="logoutBtn" data-i18n="nav.logout"></button>`;
+
   document.getElementById('logoutBtn').onclick = async () => {
     await api('/auth/logout', { method: 'POST' });
     window.location.href = '/login.html';
   };
+  document.getElementById('langSelect').onchange = (e) => {
+    setLang(e.target.value);
+    window.location.reload();
+  };
+
+  applyTranslations();
 
   try {
     const health = await fetch('/health').then((r) => r.json());
     const banner = document.getElementById('mode-banner');
     if (banner) {
       if (health.dryRun) {
-        banner.textContent = 'DRY RUN MODE -- no real messages are being sent.';
+        banner.textContent = t('banner.dryrun');
         banner.className = 'mode-banner dryrun';
       } else {
-        banner.textContent = 'LIVE -- sending via the unofficial web_js bridge. Real messages, real ban risk.';
+        banner.textContent = t('banner.live');
         banner.className = 'mode-banner live-webjs';
       }
     }

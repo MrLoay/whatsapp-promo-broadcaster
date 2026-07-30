@@ -10,64 +10,80 @@
   <nav id="nav"></nav>
   <div class="mode-banner" id="mode-banner"></div>
   <main>
-    <h1>Contacts</h1>
+    <h1 data-i18n="contacts.heading">Contacts</h1>
 
     <div class="card">
-      <h2>Add a contact</h2>
+      <h2 data-i18n="contacts.add.heading">Add one contact</h2>
       <form class="inline" id="addForm">
         <div>
-          <label>Phone (e.g. +15551234567)</label>
+          <label data-i18n="contacts.add.phone">Phone number (example: +15551234567)</label>
           <input name="phone" required />
         </div>
         <div>
-          <label>Name</label>
+          <label data-i18n="contacts.add.name">Name</label>
           <input name="name" />
         </div>
         <div>
-          <label><input type="checkbox" name="skip" style="width:auto" /> Skip (don't message this contact)</label>
+          <label><input type="checkbox" name="skip" style="width:auto" /> <span data-i18n="contacts.add.skip">Skip (don't message this person)</span></label>
         </div>
-        <button type="submit">Add</button>
+        <button type="submit" data-i18n="contacts.add.button">Add</button>
       </form>
       <div class="error" id="addError"></div>
     </div>
 
     <div class="card">
-      <h2>Import from CSV</h2>
-      <p class="muted">Paste CSV with header row: <code>phone,name,skip</code>. Everyone is messageable by default -- mark <code>skip=true</code> to exclude someone.</p>
+      <h2 data-i18n="contacts.bulk.title">Add many contacts at once</h2>
+      <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can type or paste a whole list below. Put one contact on each line, in this order: phone number, name, skip.</p>
+      <p class="muted" data-i18n="contacts.bulk.skipHelp">For "skip": write false if you want to message this person, or true if you do NOT want to message them.</p>
+      <div class="card" style="background:var(--bg); margin-bottom:12px;">
+        <p class="muted" style="margin:0 0 6px;" data-i18n="contacts.bulk.exampleLabel">Example (copy this pattern):</p>
+        <code>phone,name,skip<br />+15551234567,Alice,false<br />+15559876543,Bob,true</code>
+      </div>
       <form id="importForm">
-        <textarea name="csv" placeholder="phone,name,skip&#10;+15551234567,Alice,false"></textarea><br /><br />
-        <button type="submit">Import</button>
+        <textarea name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name,skip"></textarea><br /><br />
+        <button type="submit" data-i18n="contacts.bulk.button">Add these contacts</button>
       </form>
       <div class="error" id="importError"></div>
       <div class="muted" id="importResult"></div>
     </div>
 
     <div class="card">
-      <h2>All contacts</h2>
+      <h2 data-i18n="contacts.table.heading">All contacts</h2>
       <table>
-        <thead><tr><th>Phone</th><th>Name</th><th>Status</th><th>Source</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th data-i18n="contacts.table.phone">Phone</th>
+            <th data-i18n="contacts.table.name">Name</th>
+            <th data-i18n="contacts.table.status">Status</th>
+            <th data-i18n="contacts.table.source">Source</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody id="contactsBody"></tbody>
       </table>
     </div>
   </main>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
     async function loadContacts() {
       const contacts = await api('/contacts');
       document.getElementById('contactsBody').innerHTML = contacts
-        .map(
-          (c) => `<tr>
+        .map((c) => {
+          const isSkipped = c.opt_in_status === 'opted_out';
+          const statusLabel = isSkipped ? t('status.skipped') : t('status.messaging');
+          return `<tr>
             <td>${escapeHtml(c.phone)}</td>
             <td>${escapeHtml(c.name || '')}</td>
-            <td><span class="badge ${c.opt_in_status}">${c.opt_in_status}</span></td>
+            <td><span class="badge ${c.opt_in_status}">${statusLabel}</span></td>
             <td class="muted">${escapeHtml(c.opt_in_source || '')}</td>
-            <td><button class="danger deleteBtn" data-id="${c.id}" data-phone="${escapeHtml(c.phone)}">Delete</button></td>
-          </tr>`
-        )
+            <td><button class="danger deleteBtn" data-id="${c.id}" data-phone="${escapeHtml(c.phone)}">${t('contacts.table.delete')}</button></td>
+          </tr>`;
+        })
         .join('');
       document.querySelectorAll('.deleteBtn').forEach((btn) => {
         btn.onclick = async () => {
-          if (!confirm(`Delete ${btn.dataset.phone}? This also removes their send history and cannot be undone.`)) return;
+          if (!confirm(t('contacts.table.deleteConfirm', { phone: btn.dataset.phone }))) return;
           try {
             await api(`/contacts/${btn.dataset.id}`, { method: 'DELETE' });
             await loadContacts();

@@ -10,20 +10,21 @@
   <nav id="nav"></nav>
   <div class="mode-banner" id="mode-banner"></div>
   <main>
-    <h1>Overview</h1>
+    <h1 data-i18n="home.heading">Overview</h1>
     <div class="stat-row" id="stats"></div>
 
     <div class="card" style="margin-top:20px;">
-      <h2>Send a message now</h2>
-      <p class="muted">Sends to every opted-in contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
+      <h2 data-i18n="home.send.heading">Send a message now</h2>
+      <p class="muted" data-i18n="home.send.desc">Sends to every contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
       <form id="sendNowForm">
-        <textarea name="message" required placeholder="Hi {{name}}, enjoy 20% off this week! Reply STOP to unsubscribe."></textarea><br /><br />
-        <button type="submit">Send to all contacts</button>
+        <textarea name="message" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!"></textarea><br /><br />
+        <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
       </form>
       <div class="error" id="sendNowError"></div>
       <div class="muted" id="sendNowResult"></div>
     </div>
   </main>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
     async function loadStats() {
@@ -31,10 +32,10 @@
       const optedIn = contacts.filter((c) => c.opt_in_status === 'opted_in').length;
       const optedOut = contacts.filter((c) => c.opt_in_status === 'opted_out').length;
       const stats = [
-        ['Contacts', contacts.length],
-        ['Opted in', optedIn],
-        ['Opted out', optedOut],
-        ['Campaigns', campaigns.length],
+        [t('home.stat.contacts'), contacts.length],
+        [t('home.stat.optedIn'), optedIn],
+        [t('home.stat.optedOut'), optedOut],
+        [t('home.stat.campaigns'), campaigns.length],
       ];
       document.getElementById('stats').innerHTML = stats
         .map(([label, n]) => `<div class="stat"><div class="n">${n}</div><div class="label">${label}</div></div>`)
@@ -51,11 +52,12 @@
       resultEl.textContent = '';
 
       const optedIn = await loadStats();
-      if (!confirm(`Send this message to all ${optedIn} opted-in contact(s) now?\n\nThis sends REAL messages if the system isn't in dry-run mode.`)) return;
+      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}`)) return;
 
       const btn = form.querySelector('button');
+      const originalLabel = btn.textContent;
       btn.disabled = true;
-      btn.textContent = 'Sending...';
+      btn.textContent = t('home.send.sending');
       try {
         const summary = await api('/campaigns/send-now', { method: 'POST', body: JSON.stringify({ message: form.message.value }) });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
@@ -65,7 +67,7 @@
         errorEl.textContent = err.message;
       }
       btn.disabled = false;
-      btn.textContent = 'Send to all contacts';
+      btn.textContent = originalLabel;
     });
 
     (async () => {

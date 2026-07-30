@@ -15,28 +15,28 @@
   <nav id="nav"></nav>
   <div class="mode-banner" id="mode-banner"></div>
   <main>
-    <h1>WhatsApp connection</h1>
+    <h1 data-i18n="whatsapp.heading">WhatsApp connection</h1>
     <div class="card">
-      <div class="status-line" id="statusLine">Checking...</div>
-      <div id="needsLiveMode" style="display:none;" class="muted">
-        <code>DRY_RUN</code> is currently <code>true</code>. Set it to <code>false</code> in your environment to
-        connect a real WhatsApp session, then reload this page.
+      <div class="status-line" id="statusLine" data-i18n="whatsapp.checking">Checking...</div>
+      <div id="needsLiveMode" style="display:none;" class="muted" data-i18n="whatsapp.needsLive">
+        Test mode is currently on. Turn it off to connect a real WhatsApp account, then reload this page.
       </div>
       <div id="connectArea" style="display:none;">
-        <button id="connectBtn">Connect WhatsApp</button>
+        <button id="connectBtn" data-i18n="whatsapp.connectButton">Connect WhatsApp</button>
       </div>
       <div id="qrBox" style="display:none;">
-        <p>Scan this with WhatsApp on your phone: <strong>Settings &gt; Linked Devices &gt; Link a Device</strong></p>
+        <p data-i18n="whatsapp.scanInstructions">Scan this with WhatsApp on your phone: Settings &gt; Linked Devices &gt; Link a Device</p>
         <img id="qrImg" src="" alt="WhatsApp QR code" /><br /><br />
-        <button id="cancelBtn" class="secondary">Cancel</button>
+        <button id="cancelBtn" class="secondary" data-i18n="whatsapp.cancel">Cancel</button>
       </div>
       <div id="readyBox" style="display:none;">
-        <p style="color: var(--success); font-weight: 600;">Connected. You can send campaigns now.</p>
-        <button id="disconnectBtn" class="danger">Disconnect</button>
+        <p style="color: var(--success); font-weight: 600;" data-i18n="whatsapp.connected">Connected. You can send messages now.</p>
+        <button id="disconnectBtn" class="danger" data-i18n="whatsapp.disconnect">Disconnect</button>
       </div>
       <div id="errorBox" class="error"></div>
     </div>
   </main>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
     let polling = null;
@@ -55,13 +55,13 @@
 
       const health = await fetch('/health').then((r) => r.json());
       if (health.dryRun) {
-        statusLine.textContent = 'Status: dry-run mode';
+        statusLine.textContent = `${t('whatsapp.statusPrefix')} ${t('whatsapp.statusDryRun')}`;
         show('needsLiveMode');
         clearInterval(polling);
         return;
       }
 
-      statusLine.textContent = 'Status: ' + state.status;
+      statusLine.textContent = `${t('whatsapp.statusPrefix')} ${state.status}`;
       if (state.status === 'ready') {
         show('readyBox');
       } else if (state.status === 'qr' && state.qrDataUrl) {
@@ -81,7 +81,7 @@
     });
 
     async function disconnect() {
-      if (!confirm('Disconnect this WhatsApp session? You will need to scan a new QR code to reconnect.')) return;
+      if (!confirm(t('whatsapp.disconnectConfirm'))) return;
       try {
         await api('/whatsapp/disconnect', { method: 'POST' });
         await poll();
