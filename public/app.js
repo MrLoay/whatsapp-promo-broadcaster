@@ -20,7 +20,6 @@ async function renderNav(activePage) {
   const pages = [
     ['index.html', 'Home'],
     ['contacts.html', 'Contacts'],
-    ['campaigns.html', 'Campaigns'],
     ['whatsapp.html', 'WhatsApp'],
   ];
   const nav = document.getElementById('nav');

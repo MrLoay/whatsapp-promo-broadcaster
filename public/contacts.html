@@ -24,7 +24,7 @@
           <input name="name" />
         </div>
         <div>
-          <label><input type="checkbox" name="opted_in" style="width:auto" /> Opted in</label>
+          <label><input type="checkbox" name="skip" style="width:auto" /> Skip (don't message this contact)</label>
         </div>
         <button type="submit">Add</button>
       </form>
@@ -33,9 +33,9 @@
 
     <div class="card">
       <h2>Import from CSV</h2>
-      <p class="muted">Paste CSV with header row: <code>phone,name,opted_in</code></p>
+      <p class="muted">Paste CSV with header row: <code>phone,name,skip</code>. Everyone is messageable by default -- mark <code>skip=true</code> to exclude someone.</p>
       <form id="importForm">
-        <textarea name="csv" placeholder="phone,name,opted_in&#10;+15551234567,Alice,true"></textarea><br /><br />
+        <textarea name="csv" placeholder="phone,name,skip&#10;+15551234567,Alice,false"></textarea><br /><br />
         <button type="submit">Import</button>
       </form>
       <div class="error" id="importError"></div>
@@ -89,7 +89,7 @@
           body: JSON.stringify({
             phone: form.phone.value.trim(),
             name: form.name.value.trim() || undefined,
-            opted_in: form.opted_in.checked,
+            skip: form.skip.checked,
           }),
         });
         form.reset();

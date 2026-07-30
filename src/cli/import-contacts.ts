@@ -6,7 +6,7 @@ function main() {
   const filePath = process.argv[2];
   if (!filePath) {
     console.error('Usage: npm run import -- <path-to-contacts.csv>');
-    console.error('CSV columns required: phone,name,opted_in  (opted_in: true/false)');
+    console.error('CSV columns required: phone,name,skip  (skip: true/false -- everyone is messageable by default, mark skip=true to exclude someone)');
     process.exit(1);
   }
 

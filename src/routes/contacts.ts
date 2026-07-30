@@ -16,12 +16,12 @@ contactsRouter.get('/contacts/opted-in', (_req, res) => {
 });
 
 contactsRouter.post('/contacts', (req, res) => {
-  const { phone, name, opted_in } = req.body ?? {};
+  const { phone, name, skip } = req.body ?? {};
   if (!/^\+[1-9]\d{6,14}$/.test(phone ?? '')) {
     return res.status(400).json({ error: 'phone must be E.164 format, e.g. +15551234567' });
   }
   try {
-    upsertContact(getDb(), phone, name, Boolean(opted_in), 'dashboard');
+    upsertContact(getDb(), phone, name, Boolean(skip), 'dashboard');
     res.status(201).json(getContactByPhone(getDb(), phone));
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -34,7 +34,7 @@ contactsRouter.delete('/contacts/:id', (req, res) => {
   res.json({ deleted: true });
 });
 
-// Body: raw CSV text, header row: phone,name,opted_in
+// Body: raw CSV text, header row: phone,name,skip
 contactsRouter.post('/contacts/import', (req, res) => {
   try {
     const result = importContactsFromCsv(getDb(), req.body as string, 'api_import');

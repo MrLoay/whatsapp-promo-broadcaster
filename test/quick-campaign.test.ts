@@ -12,7 +12,7 @@ describe('quick campaign creation', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
-    importContactsFromCsv(db, `phone,name,opted_in\n+15551111111,Alice,true\n+15552222222,Bob,true`);
+    importContactsFromCsv(db, `phone,name,skip\n+15551111111,Alice,false\n+15552222222,Bob,false`);
   });
 
   it('creates a plain-message campaign with no personalization needed', () => {
@@ -37,7 +37,7 @@ describe('personalized send substitutes each recipient\'s own name', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
-    importContactsFromCsv(db, `phone,name,opted_in\n+15551111111,Alice,true\n+15552222222,Bob,true`);
+    importContactsFromCsv(db, `phone,name,skip\n+15551111111,Alice,false\n+15552222222,Bob,false`);
   });
 
   it('sends each contact their own name, not a shared value', async () => {
@@ -60,7 +60,7 @@ describe('POST /campaigns/quick', () => {
   beforeEach(async () => {
     db = openDb(':memory:');
     setDbForTests(db);
-    importContactsFromCsv(db, `phone,name,opted_in\n+15551111111,Alice,true`);
+    importContactsFromCsv(db, `phone,name,skip\n+15551111111,Alice,false`);
     const app = createApp();
     agent = request.agent(app);
     await agent.post('/auth/login').send({ username: 'testuser', password: 'testpass123' });

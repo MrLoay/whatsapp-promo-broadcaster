@@ -20,7 +20,7 @@ describe('dashboard-facing routes', () => {
   });
 
   it('adds a single contact via POST /contacts', async () => {
-    const res = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice', opted_in: true });
+    const res = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice', skip: false });
     expect(res.status).toBe(201);
     expect(res.body.opt_in_status).toBe('opted_in');
 
@@ -94,8 +94,8 @@ describe('dashboard-facing routes', () => {
   });
 
   it('POST /campaigns/send-now creates and immediately sends a campaign to all opted-in contacts', async () => {
-    await agent.post('/contacts').send({ phone: '+15551111111', name: 'Alice', opted_in: true });
-    await agent.post('/contacts').send({ phone: '+15552222222', name: 'Bob', opted_in: false });
+    await agent.post('/contacts').send({ phone: '+15551111111', name: 'Alice', skip: false });
+    await agent.post('/contacts').send({ phone: '+15552222222', name: 'Bob', skip: true });
 
     const res = await agent.post('/campaigns/send-now').send({ message: 'Hi {{name}}, enjoy 20% off!' });
     expect(res.status).toBe(200);

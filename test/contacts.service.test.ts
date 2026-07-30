@@ -10,11 +10,11 @@ describe('contacts service', () => {
     db = openDb(':memory:');
   });
 
-  it('imports opted-in and pending contacts, skips invalid phone numbers', () => {
-    const csv = `phone,name,opted_in
-+15551234567,Alice,true
-+15559876543,Bob,false
-notaphone,Eve,true`;
+  it('imports contacts messageable by default, skips invalid phone numbers, excludes skip=true rows', () => {
+    const csv = `phone,name,skip
++15551234567,Alice,false
++15559876543,Bob,true
+notaphone,Eve,false`;
 
     const result = importContactsFromCsv(db, csv);
 
@@ -26,18 +26,18 @@ notaphone,Eve,true`;
     expect(alice?.opt_in_status).toBe('opted_in');
 
     const bob = getContactByPhone(db, '+15559876543');
-    expect(bob?.opt_in_status).toBe('pending');
+    expect(bob?.opt_in_status).toBe('opted_out');
   });
 
-  it('only opted_in contacts appear in the campaign-eligible list', () => {
-    importContactsFromCsv(db, `phone,name,opted_in\n+15551234567,Alice,true\n+15559876543,Bob,false`);
+  it('only non-skipped contacts appear in the campaign-eligible list', () => {
+    importContactsFromCsv(db, `phone,name,skip\n+15551234567,Alice,false\n+15559876543,Bob,true`);
     const eligible = listOptedInContacts(db);
     expect(eligible).toHaveLength(1);
     expect(eligible[0].phone).toBe('+15551234567');
   });
 
   it('markOptedOut flips status and is reflected in eligible list', () => {
-    importContactsFromCsv(db, `phone,name,opted_in\n+15551234567,Alice,true`);
+    importContactsFromCsv(db, `phone,name,skip\n+15551234567,Alice,false`);
     expect(listOptedInContacts(db)).toHaveLength(1);
 
     markOptedOut(db, '+15551234567');

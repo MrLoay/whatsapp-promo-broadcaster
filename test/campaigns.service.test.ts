@@ -12,7 +12,7 @@ describe('campaigns service (DRY_RUN)', () => {
     db = openDb(':memory:');
     importContactsFromCsv(
       db,
-      `phone,name,opted_in\n+15551111111,Alice,true\n+15552222222,Bob,true\n+15553333333,Carl,false`
+      `phone,name,skip\n+15551111111,Alice,false\n+15552222222,Bob,false\n+15553333333,Carl,true`
     );
   });
 
