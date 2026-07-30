@@ -3,7 +3,6 @@ import type Database from 'better-sqlite3';
 export interface MessageTemplate {
   id: number;
   name: string;
-  meta_template_name: string | null;
   body_text: string | null;
   language: string;
   variable_count: number;
@@ -14,37 +13,17 @@ export interface RegisterTemplateInput {
   name: string;
   language?: string;
   variableCount?: number;
-  /** Required if you'll send this template via the cloud_api provider: must match the name approved in Meta Business Manager. */
-  metaTemplateName?: string;
-  /** Required if you'll send this template via the web_js provider: free text with {{1}}, {{2}}, ... placeholders. */
-  bodyText?: string;
+  /** Free text with {{1}}, {{2}}, ... placeholders -- the literal message sent. */
+  bodyText: string;
   /** If true, {{1}} is auto-filled per recipient from contacts.name at send time instead of a fixed campaign-wide value. */
   personalizeName?: boolean;
 }
 
-/**
- * Registers a template locally. For the cloud_api provider this does NOT
- * create or submit anything to Meta -- template creation/approval happens in
- * Meta Business Manager; this record just mirrors an already-approved
- * template so campaigns can reference it by name. For the web_js provider,
- * bodyText IS the actual message that gets sent, so it must be provided.
- */
+/** Registers a template. bodyText IS the actual message that gets sent. */
 export function registerTemplate(db: Database.Database, input: RegisterTemplateInput): MessageTemplate {
-  if (!input.metaTemplateName && !input.bodyText) {
-    throw new Error('Provide metaTemplateName (for cloud_api) and/or bodyText (for web_js)');
-  }
   const info = db
-    .prepare(
-      `INSERT INTO templates (name, meta_template_name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      input.name,
-      input.metaTemplateName ?? null,
-      input.bodyText ?? null,
-      input.language ?? 'en_US',
-      input.variableCount ?? 0,
-      input.personalizeName ? 1 : 0
-    );
+    .prepare(`INSERT INTO templates (name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?)`)
+    .run(input.name, input.bodyText, input.language ?? 'en_US', input.variableCount ?? 0, input.personalizeName ? 1 : 0);
   return getTemplateById(db, info.lastInsertRowid as number)!;
 }
 

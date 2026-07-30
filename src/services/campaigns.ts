@@ -63,6 +63,12 @@ export function createQuickCampaign(db: Database.Database, name: string, message
   return createCampaign(db, name, template.id, []);
 }
 
+/** Creates a quick campaign from just a message and sends it immediately -- the one-click flow from the Home page. */
+export async function sendNow(db: Database.Database, message: string): Promise<SendSummary> {
+  const campaign = createQuickCampaign(db, `Broadcast ${new Date().toISOString()}`, message);
+  return sendCampaign(db, campaign.id);
+}
+
 export function getCampaignById(db: Database.Database, id: number): Campaign | undefined {
   return db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as Campaign | undefined;
 }

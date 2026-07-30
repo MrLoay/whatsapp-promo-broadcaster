@@ -12,11 +12,21 @@
   <main>
     <h1>Overview</h1>
     <div class="stat-row" id="stats"></div>
+
+    <div class="card" style="margin-top:20px;">
+      <h2>Send a message now</h2>
+      <p class="muted">Sends to every opted-in contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
+      <form id="sendNowForm">
+        <textarea name="message" required placeholder="Hi {{name}}, enjoy 20% off this week! Reply STOP to unsubscribe."></textarea><br /><br />
+        <button type="submit">Send to all contacts</button>
+      </form>
+      <div class="error" id="sendNowError"></div>
+      <div class="muted" id="sendNowResult"></div>
+    </div>
   </main>
   <script src="app.js"></script>
   <script>
-    (async () => {
-      await renderNav('index.html');
+    async function loadStats() {
       const [contacts, campaigns] = await Promise.all([api('/contacts'), api('/campaigns')]);
       const optedIn = contacts.filter((c) => c.opt_in_status === 'opted_in').length;
       const optedOut = contacts.filter((c) => c.opt_in_status === 'opted_out').length;
@@ -29,6 +39,38 @@
       document.getElementById('stats').innerHTML = stats
         .map(([label, n]) => `<div class="stat"><div class="n">${n}</div><div class="label">${label}</div></div>`)
         .join('');
+      return optedIn;
+    }
+
+    document.getElementById('sendNowForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('sendNowError');
+      const resultEl = document.getElementById('sendNowResult');
+      errorEl.textContent = '';
+      resultEl.textContent = '';
+
+      const optedIn = await loadStats();
+      if (!confirm(`Send this message to all ${optedIn} opted-in contact(s) now?\n\nThis sends REAL messages if the system isn't in dry-run mode.`)) return;
+
+      const btn = form.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      try {
+        const summary = await api('/campaigns/send-now', { method: 'POST', body: JSON.stringify({ message: form.message.value }) });
+        resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
+        form.reset();
+        await loadStats();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Send to all contacts';
+    });
+
+    (async () => {
+      await renderNav('index.html');
+      await loadStats();
     })();
   </script>
 </body>

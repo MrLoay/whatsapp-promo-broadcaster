@@ -94,3 +94,13 @@ export function listOptedInContacts(db: Database.Database): Contact[] {
 export function getContactByPhone(db: Database.Database, phone: string): Contact | undefined {
   return db.prepare('SELECT * FROM contacts WHERE phone = ?').get(phone) as Contact | undefined;
 }
+
+/** Deletes a contact and their send history (campaign_recipients rows reference them via a foreign key). */
+export function deleteContact(db: Database.Database, id: number): boolean {
+  const tx = db.transaction((contactId: number) => {
+    db.prepare('DELETE FROM campaign_recipients WHERE contact_id = ?').run(contactId);
+    return db.prepare('DELETE FROM contacts WHERE id = ?').run(contactId);
+  });
+  const info = tx(id);
+  return info.changes > 0;
+}

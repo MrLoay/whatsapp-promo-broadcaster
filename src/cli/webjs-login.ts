@@ -2,10 +2,6 @@ import { config } from '../config';
 import { ensureReady } from '../whatsapp/webjs-client';
 
 async function main() {
-  if (config.whatsapp.provider !== 'web_js') {
-    console.error('WHATSAPP_PROVIDER is not set to "web_js" in .env -- nothing to log in to.');
-    process.exit(1);
-  }
   if (config.dryRun) {
     console.error('DRY_RUN is true -- set DRY_RUN=false in .env before logging in (dry run never opens a real session).');
     process.exit(1);

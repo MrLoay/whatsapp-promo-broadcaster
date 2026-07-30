@@ -11,14 +11,13 @@ templatesRouter.get('/templates', (_req, res) => {
 });
 
 templatesRouter.post('/templates', (req, res) => {
-  const { name, metaTemplateName, bodyText, language, variableCount } = req.body ?? {};
-  if (!name) {
-    return res.status(400).json({ error: 'name is required' });
+  const { name, bodyText, language, variableCount } = req.body ?? {};
+  if (!name || !bodyText) {
+    return res.status(400).json({ error: 'name and bodyText are required' });
   }
   try {
     const template = registerTemplate(getDb(), {
       name,
-      metaTemplateName,
       bodyText,
       language: language ?? 'en_US',
       variableCount: variableCount ?? 0,

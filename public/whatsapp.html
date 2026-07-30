@@ -18,11 +18,6 @@
     <h1>WhatsApp connection</h1>
     <div class="card">
       <div class="status-line" id="statusLine">Checking...</div>
-      <div id="notApplicable" style="display:none;" class="muted">
-        This server is configured to use the official WhatsApp Cloud API (<code>WHATSAPP_PROVIDER=cloud_api</code>),
-        which doesn't need a QR code login -- it authenticates with an access token instead. This page only applies
-        when using the interim <code>web_js</code> bridge.
-      </div>
       <div id="needsLiveMode" style="display:none;" class="muted">
         <code>DRY_RUN</code> is currently <code>true</code>. Set it to <code>false</code> in your environment to
         connect a real WhatsApp session, then reload this page.
@@ -32,10 +27,12 @@
       </div>
       <div id="qrBox" style="display:none;">
         <p>Scan this with WhatsApp on your phone: <strong>Settings &gt; Linked Devices &gt; Link a Device</strong></p>
-        <img id="qrImg" src="" alt="WhatsApp QR code" />
+        <img id="qrImg" src="" alt="WhatsApp QR code" /><br /><br />
+        <button id="cancelBtn" class="secondary">Cancel</button>
       </div>
       <div id="readyBox" style="display:none;">
         <p style="color: var(--success); font-weight: 600;">Connected. You can send campaigns now.</p>
+        <button id="disconnectBtn" class="danger">Disconnect</button>
       </div>
       <div id="errorBox" class="error"></div>
     </div>
@@ -45,7 +42,7 @@
     let polling = null;
 
     function show(id) {
-      ['connectArea', 'qrBox', 'readyBox', 'notApplicable', 'needsLiveMode'].forEach(
+      ['connectArea', 'qrBox', 'readyBox', 'needsLiveMode'].forEach(
         (i) => (document.getElementById(i).style.display = i === id ? 'block' : 'none')
       );
     }
@@ -55,13 +52,6 @@
       const statusLine = document.getElementById('statusLine');
       const errorBox = document.getElementById('errorBox');
       errorBox.textContent = state.error || '';
-
-      if (state.provider !== 'web_js') {
-        statusLine.textContent = 'Provider: official Cloud API';
-        show('notApplicable');
-        clearInterval(polling);
-        return;
-      }
 
       const health = await fetch('/health').then((r) => r.json());
       if (health.dryRun) {
@@ -89,6 +79,18 @@
         document.getElementById('errorBox').textContent = err.message;
       }
     });
+
+    async function disconnect() {
+      if (!confirm('Disconnect this WhatsApp session? You will need to scan a new QR code to reconnect.')) return;
+      try {
+        await api('/whatsapp/disconnect', { method: 'POST' });
+        await poll();
+      } catch (err) {
+        document.getElementById('errorBox').textContent = err.message;
+      }
+    }
+    document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+    document.getElementById('cancelBtn').addEventListener('click', disconnect);
 
     (async () => {
       await renderNav('whatsapp.html');

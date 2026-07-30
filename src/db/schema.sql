@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS contacts (
 CREATE TABLE IF NOT EXISTS templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL UNIQUE,            -- local reference name
-  meta_template_name TEXT,              -- required for the cloud_api provider: must match the name approved in Meta Business Manager
-  body_text TEXT,                       -- required for the web_js provider: free-form text with {{1}}, {{2}}, ... placeholders
+  meta_template_name TEXT,              -- unused for now; reserved for the official Meta Cloud API integration (see SETUP_META.md)
+  body_text TEXT NOT NULL,              -- the literal message sent, with {{1}}, {{2}}, ... placeholders
   language TEXT NOT NULL DEFAULT 'en_US',
   variable_count INTEGER NOT NULL DEFAULT 0,
   personalize_name INTEGER NOT NULL DEFAULT 0, -- if true, {{1}} is auto-filled per recipient from contacts.name at send time

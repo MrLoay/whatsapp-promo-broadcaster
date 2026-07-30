@@ -45,7 +45,7 @@
     <div class="card">
       <h2>All contacts</h2>
       <table>
-        <thead><tr><th>Phone</th><th>Name</th><th>Status</th><th>Source</th></tr></thead>
+        <thead><tr><th>Phone</th><th>Name</th><th>Status</th><th>Source</th><th></th></tr></thead>
         <tbody id="contactsBody"></tbody>
       </table>
     </div>
@@ -61,9 +61,21 @@
             <td>${escapeHtml(c.name || '')}</td>
             <td><span class="badge ${c.opt_in_status}">${c.opt_in_status}</span></td>
             <td class="muted">${escapeHtml(c.opt_in_source || '')}</td>
+            <td><button class="danger deleteBtn" data-id="${c.id}" data-phone="${escapeHtml(c.phone)}">Delete</button></td>
           </tr>`
         )
         .join('');
+      document.querySelectorAll('.deleteBtn').forEach((btn) => {
+        btn.onclick = async () => {
+          if (!confirm(`Delete ${btn.dataset.phone}? This also removes their send history and cannot be undone.`)) return;
+          try {
+            await api(`/contacts/${btn.dataset.id}`, { method: 'DELETE' });
+            await loadContacts();
+          } catch (err) {
+            alert('Error: ' + err.message);
+          }
+        };
+      });
     }
 
     document.getElementById('addForm').addEventListener('submit', async (e) => {

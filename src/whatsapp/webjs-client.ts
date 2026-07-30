@@ -93,6 +93,30 @@ export function ensureReady(): Promise<Client> {
   return readyPromise;
 }
 
+/** Logs out of WhatsApp (clears the saved session -- next connect needs a fresh QR scan) and resets state. */
+export async function disconnect(): Promise<void> {
+  const c = client;
+  client = null;
+  readyPromise = null;
+  connectionStatus = 'idle';
+  latestQr = null;
+  lastError = null;
+
+  if (c) {
+    try {
+      await c.logout();
+    } catch {
+      // Best-effort -- state is already reset above regardless of whether the
+      // in-progress session could be gracefully logged out.
+    }
+    try {
+      await c.destroy();
+    } catch {
+      /* already torn down */
+    }
+  }
+}
+
 export async function sendTextMessage(toPhoneE164: string, text: string): Promise<{ id: string }> {
   if (config.dryRun) {
     const fakeId = `dryrun-webjs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

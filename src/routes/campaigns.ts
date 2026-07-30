@@ -5,6 +5,7 @@ import {
   createQuickCampaign,
   getCampaignById,
   sendCampaign,
+  sendNow,
   listCampaignsWithStats,
   getCampaignRecipients,
 } from '../services/campaigns';
@@ -50,6 +51,21 @@ campaignsRouter.post('/campaigns/quick', (req, res) => {
   try {
     const campaign = createQuickCampaign(getDb(), name, message);
     res.status(201).json(campaign);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// One-click flow from the Home page: type a message, send to everyone
+// opted-in right now, no separate draft/review step.
+campaignsRouter.post('/campaigns/send-now', async (req, res) => {
+  const { message } = req.body ?? {};
+  if (!message) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  try {
+    const summary = await sendNow(getDb(), message);
+    res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

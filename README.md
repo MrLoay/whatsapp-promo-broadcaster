@@ -1,27 +1,23 @@
 # WhatsApp Boutique Broadcast
 
-A small backend for sending WhatsApp promotional broadcasts to your boutique's
-contact list via the official WhatsApp Business Cloud API — with opt-in
-tracking, message templates, throttled campaign sends, and delivery-status /
-opt-out webhooks.
+A small web dashboard + backend for sending WhatsApp promotional broadcasts
+to your boutique's contact list — with opt-in tracking, one-click "type a
+message and send to everyone" campaigns, and automatic STOP/opt-out handling.
 
 **You cannot legally or technically send unsolicited promotional WhatsApp
 messages.** Every send in this system only targets contacts explicitly marked
 `opted_in`, and any inbound "STOP" reply automatically suppresses future
 sends to that contact.
 
-## Status: works in DRY_RUN mode today
+## How sending works right now
 
-You don't have a Meta WhatsApp Business account yet, so `DRY_RUN=true` (the
-default) makes the whole pipeline — import, campaign creation, sending,
-delivery-status updates, opt-out handling — runnable and testable locally.
-No real messages are sent; the client logs what it *would* send. Once your
-WABA is approved, follow [SETUP_META.md](./SETUP_META.md) and flip
-`DRY_RUN=false`.
-
-Need to send real broadcasts *before* your WABA is approved? There's an
-interim `web_js` provider (unofficial, ToS-violating, ban risk) — see
-[WEBJS_INTERIM.md](./WEBJS_INTERIM.md) before using it.
+This currently sends via **whatsapp-web.js**, an unofficial bridge that
+drives a real WhatsApp Web session — no Meta Business approval needed to get
+started, but it violates WhatsApp's Terms of Service and carries a real risk
+of the number getting restricted/banned. Read
+[WEBJS_INTERIM.md](./WEBJS_INTERIM.md) before sending anything real. The
+official Meta Cloud API integration (ban-safe, requires WABA approval) will
+come back once that approval is in hand — see [SETUP_META.md](./SETUP_META.md).
 
 ## Setup
 
@@ -32,53 +28,54 @@ npm run build
 npm test
 ```
 
+Set `DRY_RUN=true` (the default) to test the whole pipeline without sending
+anything real — the client logs what it *would* send.
+
 ## Usage
 
-### 1. Import contacts
-
-CSV with columns `phone,name,opted_in` (phone must be E.164, e.g.
-`+15551234567`; `opted_in` is `true`/`false` — only `true` rows are eligible
-for campaigns):
+### 1. Create a dashboard login
 
 ```
-npm run import -- contacts.csv
+npm run hash-password -- <your-password>
 ```
-
-### 2. Register a template
-
-Templates must already be approved in Meta Business Manager — this just
-records the mapping locally (via the REST API, once the server is running):
-
+Paste the printed hash into `DASHBOARD_USERS` in `.env`:
 ```
-POST /templates
-{ "name": "summer-sale", "metaTemplateName": "summer_sale_promo", "language": "en_US", "variableCount": 1 }
+DASHBOARD_USERS=[{"username":"you","passwordHash":"<hash>"}]
 ```
+Run it again for anyone else who needs access (e.g. an assistant), and add
+them to the same array.
 
-### 3. Create and send a campaign
-
-```
-POST /campaigns
-{ "name": "Summer Sale", "templateId": 1, "variableValues": ["20%"] }
-
-POST /campaigns/1/send
-```
-
-or via CLI: `npm run send -- 1`
-
-### 4. Run the server (for webhooks + REST API)
+### 2. Start the server
 
 ```
 npm run dev
 ```
+Open `http://localhost:3000/login.html`.
 
-Webhook endpoint: `GET/POST /webhook` — register this URL (with your
-`WEBHOOK_VERIFY_TOKEN`) in the Meta App Dashboard once you have a public URL
-(e.g. via ngrok during development).
+### 3. Import contacts
+
+On the **Contacts** page: add one at a time, or paste a CSV with columns
+`phone,name,opted_in` (phone must be E.164, e.g. `+15551234567`; only
+`opted_in=true` rows are ever messaged).
+
+### 4. Connect WhatsApp
+
+On the **WhatsApp** page (once `DRY_RUN=false`): click **Connect WhatsApp**,
+scan the QR code with your phone (Settings > Linked Devices > Link a
+Device). The session is saved, so you won't need to re-scan on future runs
+unless you click **Disconnect**.
+
+### 5. Send a broadcast
+
+On the **Home** page: type a message and click **Send to all contacts**. Use
+`{{name}}` anywhere in the message and each contact's own name is filled in
+automatically. This sends immediately to every opted-in contact — no draft
+step.
 
 ## Rate limits
 
-New WhatsApp Business numbers start in a tier capped at 250 unique contacts
-messaged per rolling 24 hours; this grows automatically as your number
-maintains a good quality rating. `TIER_LIMIT_PER_24H` in `.env` should match
-your current tier — `sendCampaign` stops queuing new sends once it would
-exceed that limit, and resuming the campaign later picks up where it left off.
+Keep volume conservative with `web_js` — it doesn't have the official API's
+tiered rate limits, and looks more like spam to WhatsApp's abuse detection
+the faster it sends. `TIER_LIMIT_PER_24H` and `MESSAGES_PER_SECOND` in `.env`
+throttle sends; `sendCampaign` stops queuing new sends once it would exceed
+the 24h limit, and resuming later picks up where it left off.

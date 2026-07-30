@@ -11,22 +11,9 @@
   <div class="mode-banner" id="mode-banner"></div>
   <main>
     <h1>Campaigns</h1>
+    <p class="muted">To send a new broadcast, use <a class="link" href="index.html">Send a message now</a> on the Home page. This page tracks what's already gone out.</p>
 
     <div class="card">
-      <h2>New campaign</h2>
-      <form id="createForm">
-        <label>Name</label>
-        <input name="name" required style="width:100%; margin-bottom:10px;" />
-        <label>Message</label>
-        <textarea name="message" required placeholder="Hi {{name}}, enjoy 20% off this week! Reply STOP to unsubscribe."></textarea>
-        <p class="muted">Use <code>{{name}}</code> anywhere and each contact's own name is filled in automatically.</p>
-        <button type="submit">Create campaign (draft)</button>
-      </form>
-      <div class="error" id="createError"></div>
-    </div>
-
-    <div class="card">
-      <h2>All campaigns</h2>
       <table>
         <thead>
           <tr><th>Name</th><th>Status</th><th>Sent</th><th>Delivered</th><th>Read</th><th>Failed</th><th></th></tr>
@@ -48,14 +35,14 @@
             <td>${c.delivered || 0}</td>
             <td>${c.read || 0}</td>
             <td>${c.failed || 0}</td>
-            <td><button data-id="${c.id}" class="sendBtn">Send</button></td>
+            <td>${c.failed > 0 ? `<button data-id="${c.id}" class="sendBtn">Retry failed</button>` : ''}</td>
           </tr>`
         )
         .join('');
       document.querySelectorAll('.sendBtn').forEach((btn) => {
         btn.onclick = async () => {
           const id = btn.dataset.id;
-          if (!confirm(`Send this campaign now to all opted-in contacts not yet successfully messaged?\n\nThis sends REAL messages if the system isn't in dry-run mode.`)) return;
+          if (!confirm(`Retry the ${btn.closest('tr').children[5].textContent} failed recipient(s) for this campaign?\n\nOnly do this if they genuinely didn't receive it -- some failures are false alarms (see the campaign detail page).`)) return;
           btn.disabled = true;
           btn.textContent = 'Sending...';
           try {
@@ -68,23 +55,6 @@
         };
       });
     }
-
-    document.getElementById('createForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const errorEl = document.getElementById('createError');
-      errorEl.textContent = '';
-      try {
-        await api('/campaigns/quick', {
-          method: 'POST',
-          body: JSON.stringify({ name: form.name.value.trim(), message: form.message.value.trim() }),
-        });
-        form.reset();
-        await loadCampaigns();
-      } catch (err) {
-        errorEl.textContent = err.message;
-      }
-    });
 
     (async () => {
       await renderNav('campaigns.html');

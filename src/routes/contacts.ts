@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db';
-import { importContactsFromCsv, listOptedInContacts, upsertContact, getContactByPhone } from '../services/contacts';
+import { importContactsFromCsv, listOptedInContacts, upsertContact, getContactByPhone, deleteContact } from '../services/contacts';
 import { requireAuth } from '../auth';
 
 export const contactsRouter = Router();
@@ -26,6 +26,12 @@ contactsRouter.post('/contacts', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }
+});
+
+contactsRouter.delete('/contacts/:id', (req, res) => {
+  const deleted = deleteContact(getDb(), Number(req.params.id));
+  if (!deleted) return res.sendStatus(404);
+  res.json({ deleted: true });
 });
 
 // Body: raw CSV text, header row: phone,name,opted_in

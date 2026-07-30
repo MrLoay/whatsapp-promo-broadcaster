@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type Database from 'better-sqlite3';
 import request from 'supertest';
 import { openDb, setDbForTests } from '../src/db';
@@ -6,7 +6,6 @@ import { importContactsFromCsv } from '../src/services/contacts';
 import { createQuickCampaign, sendCampaign, getCampaignById } from '../src/services/campaigns';
 import { getTemplateById } from '../src/services/templates';
 import { createApp } from '../src/server';
-import { config } from '../src/config';
 
 describe('quick campaign creation', () => {
   let db: Database.Database;
@@ -35,16 +34,10 @@ describe('quick campaign creation', () => {
 
 describe('personalized send substitutes each recipient\'s own name', () => {
   let db: Database.Database;
-  const originalProvider = config.whatsapp.provider;
 
   beforeEach(() => {
     db = openDb(':memory:');
     importContactsFromCsv(db, `phone,name,opted_in\n+15551111111,Alice,true\n+15552222222,Bob,true`);
-    config.whatsapp.provider = 'web_js'; // dry-run web_js logs the rendered text, letting us assert on it
-  });
-
-  afterEach(() => {
-    config.whatsapp.provider = originalProvider;
   });
 
   it('sends each contact their own name, not a shared value', async () => {

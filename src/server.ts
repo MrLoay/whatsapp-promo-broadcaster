@@ -31,7 +31,7 @@ export function createApp(): Express {
 
   app.use(authRouter);
 
-  app.get('/health', (_req, res) => res.json({ ok: true, dryRun: config.dryRun, provider: config.whatsapp.provider }));
+  app.get('/health', (_req, res) => res.json({ ok: true, dryRun: config.dryRun }));
 
   // Static dashboard pages are served (and requests for them terminated)
   // before the API routers below, so login.html/style.css/etc. are reachable
@@ -55,14 +55,14 @@ export function createApp(): Express {
 if (require.main === module) {
   const app = createApp();
 
-  if (config.whatsapp.provider === 'web_js' && !config.dryRun) {
-    // Lazy-required so a plain cloud_api/dry-run boot never pulls in Puppeteer.
+  if (!config.dryRun) {
+    // Lazy-required so a dry-run boot never pulls in Puppeteer.
     const { getDb } = require('./db');
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
     startWebJsListeners(getDb());
   }
 
   app.listen(config.server.port, () => {
-    console.log(`Server listening on port ${config.server.port} (DRY_RUN=${config.dryRun}, provider=${config.whatsapp.provider})`);
+    console.log(`Server listening on port ${config.server.port} (DRY_RUN=${config.dryRun})`);
   });
 }

@@ -45,12 +45,9 @@ async function renderNav(activePage) {
       if (health.dryRun) {
         banner.textContent = 'DRY RUN MODE -- no real messages are being sent.';
         banner.className = 'mode-banner dryrun';
-      } else if (health.provider === 'web_js') {
+      } else {
         banner.textContent = 'LIVE -- sending via the unofficial web_js bridge. Real messages, real ban risk.';
         banner.className = 'mode-banner live-webjs';
-      } else {
-        banner.textContent = 'LIVE -- sending via the official WhatsApp Cloud API.';
-        banner.className = 'mode-banner live-cloud';
       }
     }
   } catch {

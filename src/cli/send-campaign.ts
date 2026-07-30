@@ -1,6 +1,6 @@
 import { getDb } from '../db';
 import { sendCampaign } from '../services/campaigns';
-import { assertLiveCredentials, config } from '../config';
+import { config } from '../config';
 
 async function main() {
   const campaignId = Number(process.argv[2]);
@@ -9,7 +9,6 @@ async function main() {
     process.exit(1);
   }
 
-  assertLiveCredentials();
   console.log(`Sending campaign ${campaignId} (DRY_RUN=${config.dryRun})...`);
 
   const db = getDb();
