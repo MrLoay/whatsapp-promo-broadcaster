@@ -56,10 +56,18 @@ if (require.main === module) {
   const app = createApp();
 
   if (!config.dryRun) {
-    // Lazy-required so a dry-run boot never pulls in Puppeteer.
+    // Lazy-required so a dry-run boot never pulls in Puppeteer. Each
+    // configured dashboard account gets its own WhatsApp session -- if it
+    // was previously linked, this resumes it automatically without a new
+    // QR scan; if not, it just sits idle until that account clicks Connect.
     const { getDb } = require('./db');
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
-    startWebJsListeners(getDb());
+    try {
+      const users = JSON.parse(config.dashboard.users) as { username: string }[];
+      for (const { username } of users) startWebJsListeners(getDb(), username);
+    } catch (err) {
+      console.error('Failed to parse DASHBOARD_USERS for WhatsApp auto-reconnect:', (err as Error).message);
+    }
   }
 
   app.listen(config.server.port, () => {

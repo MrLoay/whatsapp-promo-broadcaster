@@ -6,13 +6,15 @@ import { recordDeliveryStatus } from '../services/campaigns';
 import { isOptOutMessage } from '../services/optOut';
 
 /**
- * Attaches inbound-message and delivery-ack listeners for the web_js
- * provider. Only meaningful while the process stays running (e.g. the
- * server), since whatsapp-web.js delivers events over an active session --
- * a one-shot CLI send won't be around to observe later acks/replies.
+ * Attaches inbound-message and delivery-ack listeners for one owner's
+ * WhatsApp session. Only meaningful while the process stays running (e.g.
+ * the server), since whatsapp-web.js delivers events over an active session.
+ * Safe to call more than once for the same owner -- skips re-attaching if
+ * this client instance already has listeners.
  */
-export function startWebJsListeners(db: Database.Database): void {
-  const client = getWebJsClient();
+export function startWebJsListeners(db: Database.Database, owner: string): void {
+  const client = getWebJsClient(owner);
+  if (client.listenerCount('message') > 0) return; // already wired up for this client instance
 
   client.on('message', (message: Message) => {
     const phone = `+${message.from.replace('@c.us', '')}`;
@@ -20,10 +22,10 @@ export function startWebJsListeners(db: Database.Database): void {
     const optOut = isOptOutMessage(body);
 
     db.prepare(
-      `INSERT INTO inbound_messages (contact_phone, body, triggered_opt_out) VALUES (?, ?, ?)`
-    ).run(phone, body, optOut ? 1 : 0);
+      `INSERT INTO inbound_messages (owner, contact_phone, body, triggered_opt_out) VALUES (?, ?, ?, ?)`
+    ).run(owner, phone, body, optOut ? 1 : 0);
 
-    if (optOut) markOptedOut(db, phone);
+    if (optOut) markOptedOut(db, owner, phone);
   });
 
   // whatsapp-web.js ack levels: -1 error, 0 pending, 1 sent (server), 2 delivered (device), 3 read, 4 played.
@@ -35,8 +37,8 @@ export function startWebJsListeners(db: Database.Database): void {
   });
 
   client.on('disconnected', (reason: WAState | string) => {
-    console.error(`whatsapp-web.js: session disconnected (${reason}). Run "npm run whatsapp:login" to reconnect.`);
+    console.error(`[${owner}] whatsapp-web.js: session disconnected (${reason}). Reconnect via the dashboard's WhatsApp page.`);
   });
 
-  ensureReady().catch((err) => console.error('whatsapp-web.js failed to start:', err.message));
+  ensureReady(owner).catch((err) => console.error(`[${owner}] whatsapp-web.js failed to start:`, err.message));
 }

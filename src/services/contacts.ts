@@ -5,6 +5,7 @@ export type OptInStatus = 'pending' | 'opted_in' | 'opted_out';
 
 export interface Contact {
   id: number;
+  owner: string;
   phone: string;
   name: string | null;
   opt_in_status: OptInStatus;
@@ -30,10 +31,19 @@ const E164_RE = /^\+[1-9]\d{6,14}$/;
  * Every contact added here is messageable -- the boutique owner is expected
  * to only add numbers of people they've already been in contact with. The
  * one automatic exception is a STOP reply (see markOptedOut), which always
- * overrides this.
+ * overrides this. Contacts are scoped per dashboard account (owner) -- the
+ * same phone number can exist as a separate contact under a different owner.
  */
-export function upsertContact(db: Database.Database, phone: string, name: string | undefined, source: string): 'inserted' | 'updated' {
-  const existing = db.prepare('SELECT id FROM contacts WHERE phone = ?').get(phone) as { id: number } | undefined;
+export function upsertContact(
+  db: Database.Database,
+  owner: string,
+  phone: string,
+  name: string | undefined,
+  source: string
+): 'inserted' | 'updated' {
+  const existing = db.prepare('SELECT id FROM contacts WHERE owner = ? AND phone = ?').get(owner, phone) as
+    | { id: number }
+    | undefined;
   const now = new Date().toISOString();
 
   if (existing) {
@@ -44,14 +54,19 @@ export function upsertContact(db: Database.Database, phone: string, name: string
   }
 
   db.prepare(
-    `INSERT INTO contacts (phone, name, opt_in_status, opt_in_source, opt_in_at)
-     VALUES (?, ?, 'opted_in', ?, ?)`
-  ).run(phone, name ?? null, source, now);
+    `INSERT INTO contacts (owner, phone, name, opt_in_status, opt_in_source, opt_in_at)
+     VALUES (?, ?, ?, 'opted_in', ?, ?)`
+  ).run(owner, phone, name ?? null, source, now);
   return 'inserted';
 }
 
 /** CSV must have columns: phone, name (optional). Every valid row is added as messageable. */
-export function importContactsFromCsv(db: Database.Database, csvContent: string, source = 'csv_import'): ImportResult {
+export function importContactsFromCsv(
+  db: Database.Database,
+  owner: string,
+  csvContent: string,
+  source = 'csv_import'
+): ImportResult {
   const rows = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
   const result: ImportResult = { inserted: 0, updated: 0, skipped: [] };
 
@@ -62,7 +77,7 @@ export function importContactsFromCsv(db: Database.Database, csvContent: string,
         result.skipped.push({ phone: phone || '(empty)', reason: 'invalid phone format, expected E.164 e.g. +15551234567' });
         continue;
       }
-      const outcome = upsertContact(db, phone, row.name, source);
+      const outcome = upsertContact(db, owner, phone, row.name, source);
       result[outcome === 'inserted' ? 'inserted' : 'updated']++;
     }
   });
@@ -71,25 +86,32 @@ export function importContactsFromCsv(db: Database.Database, csvContent: string,
   return result;
 }
 
-export function markOptedOut(db: Database.Database, phone: string): boolean {
+/** owner identifies whose WhatsApp session received the STOP -- only that account's contact is affected. */
+export function markOptedOut(db: Database.Database, owner: string, phone: string): boolean {
   const now = new Date().toISOString();
   const info = db
-    .prepare(`UPDATE contacts SET opt_in_status = 'opted_out', opted_out_at = ?, updated_at = ? WHERE phone = ?`)
-    .run(now, now, phone);
+    .prepare(`UPDATE contacts SET opt_in_status = 'opted_out', opted_out_at = ?, updated_at = ? WHERE owner = ? AND phone = ?`)
+    .run(now, now, owner, phone);
   return info.changes > 0;
 }
 
-export function listOptedInContacts(db: Database.Database): Contact[] {
-  return db.prepare(`SELECT * FROM contacts WHERE opt_in_status = 'opted_in'`).all() as Contact[];
+export function listOptedInContacts(db: Database.Database, owner: string): Contact[] {
+  return db.prepare(`SELECT * FROM contacts WHERE owner = ? AND opt_in_status = 'opted_in'`).all(owner) as Contact[];
 }
 
-export function getContactByPhone(db: Database.Database, phone: string): Contact | undefined {
-  return db.prepare('SELECT * FROM contacts WHERE phone = ?').get(phone) as Contact | undefined;
+export function listContacts(db: Database.Database, owner: string): Contact[] {
+  return db.prepare('SELECT * FROM contacts WHERE owner = ? ORDER BY id').all(owner) as Contact[];
 }
 
-/** Deletes a contact and their send history (campaign_recipients rows reference them via a foreign key). */
-export function deleteContact(db: Database.Database, id: number): boolean {
+export function getContactByPhone(db: Database.Database, owner: string, phone: string): Contact | undefined {
+  return db.prepare('SELECT * FROM contacts WHERE owner = ? AND phone = ?').get(owner, phone) as Contact | undefined;
+}
+
+/** Deletes a contact (and its send history) -- scoped to owner so one account can't delete another's contact by guessing an id. */
+export function deleteContact(db: Database.Database, owner: string, id: number): boolean {
   const tx = db.transaction((contactId: number) => {
+    const contact = db.prepare('SELECT id FROM contacts WHERE id = ? AND owner = ?').get(contactId, owner);
+    if (!contact) return { changes: 0 };
     db.prepare('DELETE FROM campaign_recipients WHERE contact_id = ?').run(contactId);
     return db.prepare('DELETE FROM contacts WHERE id = ?').run(contactId);
   });

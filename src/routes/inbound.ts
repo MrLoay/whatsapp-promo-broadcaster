@@ -5,6 +5,6 @@ import { requireAuth } from '../auth';
 export const inboundRouter = Router();
 inboundRouter.use(requireAuth);
 
-inboundRouter.get('/inbound-messages', (_req, res) => {
-  res.json(getDb().prepare('SELECT * FROM inbound_messages ORDER BY id DESC').all());
+inboundRouter.get('/inbound-messages', (req, res) => {
+  res.json(getDb().prepare('SELECT * FROM inbound_messages WHERE owner = ? ORDER BY id DESC').all(req.session.username!));
 });

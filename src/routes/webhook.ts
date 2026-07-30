@@ -8,6 +8,20 @@ import { isOptOutMessage } from '../services/optOut';
 
 export const webhookRouter = Router();
 
+// This webhook predates multi-tenancy and is currently dormant (no code
+// registers it with Meta yet -- see SETUP_META.md). When the official Cloud
+// API integration is rebuilt, this needs a real way to know which dashboard
+// account's WABA a given webhook call belongs to (e.g. a per-account
+// WHATSAPP_PHONE_NUMBER_ID mapping), not this placeholder.
+function legacyWebhookOwner(): string {
+  try {
+    const users = JSON.parse(config.dashboard.users) as { username: string }[];
+    return users[0]?.username ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // Meta's verification handshake when you register the webhook URL.
 webhookRouter.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -45,12 +59,13 @@ webhookRouter.post('/webhook', raw({ type: 'application/json' }), (req, res) => 
         const body: string = message.text?.body ?? '';
         const phone: string = message.from?.startsWith('+') ? message.from : `+${message.from}`;
         const isOptOut = isOptOutMessage(body);
+        const owner = legacyWebhookOwner();
 
         db.prepare(
-          `INSERT INTO inbound_messages (contact_phone, body, triggered_opt_out) VALUES (?, ?, ?)`
-        ).run(phone, body, isOptOut ? 1 : 0);
+          `INSERT INTO inbound_messages (owner, contact_phone, body, triggered_opt_out) VALUES (?, ?, ?, ?)`
+        ).run(owner, phone, body, isOptOut ? 1 : 0);
 
-        if (isOptOut) markOptedOut(db, phone);
+        if (isOptOut) markOptedOut(db, owner, phone);
       }
     }
   }

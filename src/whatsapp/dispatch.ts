@@ -13,6 +13,7 @@ export interface DispatchResult {
  * path will come back once a WABA is approved -- see SETUP_META.md.
  */
 export async function sendCampaignMessage(
+  owner: string,
   toPhoneE164: string,
   template: MessageTemplate,
   variableValues: string[]
@@ -21,6 +22,6 @@ export async function sendCampaignMessage(
     throw new Error(`Template "${template.name}" has no bodyText set`);
   }
   const text = renderTemplateBody(template.body_text, variableValues);
-  const result = await sendTextMessage(toPhoneE164, text);
+  const result = await sendTextMessage(owner, toPhoneE164, text);
   return { id: result.id, dryRun: config.dryRun };
 }

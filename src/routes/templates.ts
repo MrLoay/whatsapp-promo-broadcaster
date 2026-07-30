@@ -6,8 +6,8 @@ import { requireAuth } from '../auth';
 export const templatesRouter = Router();
 templatesRouter.use(requireAuth);
 
-templatesRouter.get('/templates', (_req, res) => {
-  res.json(listTemplates(getDb()));
+templatesRouter.get('/templates', (req, res) => {
+  res.json(listTemplates(getDb(), req.session.username!));
 });
 
 templatesRouter.post('/templates', (req, res) => {
@@ -16,7 +16,7 @@ templatesRouter.post('/templates', (req, res) => {
     return res.status(400).json({ error: 'name and bodyText are required' });
   }
   try {
-    const template = registerTemplate(getDb(), {
+    const template = registerTemplate(getDb(), req.session.username!, {
       name,
       bodyText,
       language: language ?? 'en_US',

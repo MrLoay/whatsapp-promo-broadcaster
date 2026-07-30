@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 
 export interface MessageTemplate {
   id: number;
+  owner: string;
   name: string;
   body_text: string | null;
   language: string;
@@ -19,22 +20,22 @@ export interface RegisterTemplateInput {
   personalizeName?: boolean;
 }
 
-/** Registers a template. bodyText IS the actual message that gets sent. */
-export function registerTemplate(db: Database.Database, input: RegisterTemplateInput): MessageTemplate {
+/** Registers a template scoped to owner. bodyText IS the actual message that gets sent. */
+export function registerTemplate(db: Database.Database, owner: string, input: RegisterTemplateInput): MessageTemplate {
   const info = db
-    .prepare(`INSERT INTO templates (name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?)`)
-    .run(input.name, input.bodyText, input.language ?? 'en_US', input.variableCount ?? 0, input.personalizeName ? 1 : 0);
-  return getTemplateById(db, info.lastInsertRowid as number)!;
+    .prepare(`INSERT INTO templates (owner, name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?, ?)`)
+    .run(owner, input.name, input.bodyText, input.language ?? 'en_US', input.variableCount ?? 0, input.personalizeName ? 1 : 0);
+  return getTemplateById(db, owner, info.lastInsertRowid as number)!;
 }
 
-export function getTemplateById(db: Database.Database, id: number): MessageTemplate | undefined {
-  return db.prepare('SELECT * FROM templates WHERE id = ?').get(id) as MessageTemplate | undefined;
+export function getTemplateById(db: Database.Database, owner: string, id: number): MessageTemplate | undefined {
+  return db.prepare('SELECT * FROM templates WHERE id = ? AND owner = ?').get(id, owner) as MessageTemplate | undefined;
 }
 
-export function getTemplateByName(db: Database.Database, name: string): MessageTemplate | undefined {
-  return db.prepare('SELECT * FROM templates WHERE name = ?').get(name) as MessageTemplate | undefined;
+export function getTemplateByName(db: Database.Database, owner: string, name: string): MessageTemplate | undefined {
+  return db.prepare('SELECT * FROM templates WHERE owner = ? AND name = ?').get(owner, name) as MessageTemplate | undefined;
 }
 
-export function listTemplates(db: Database.Database): MessageTemplate[] {
-  return db.prepare('SELECT * FROM templates ORDER BY id').all() as MessageTemplate[];
+export function listTemplates(db: Database.Database, owner: string): MessageTemplate[] {
+  return db.prepare('SELECT * FROM templates WHERE owner = ? ORDER BY id').all(owner) as MessageTemplate[];
 }

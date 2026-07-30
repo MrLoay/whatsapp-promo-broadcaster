@@ -6,6 +6,7 @@ import { getTemplateById, registerTemplate, type MessageTemplate } from './templ
 
 export interface Campaign {
   id: number;
+  owner: string;
   name: string;
   template_id: number;
   variable_values: string | null;
@@ -23,11 +24,12 @@ export interface SendSummary {
 
 export function createCampaign(
   db: Database.Database,
+  owner: string,
   name: string,
   templateId: number,
   variableValues: string[]
 ): Campaign {
-  const template = getTemplateById(db, templateId);
+  const template = getTemplateById(db, owner, templateId);
   if (!template) throw new Error(`Template ${templateId} not found`);
   // personalize_name templates get their {{1}} filled per-recipient at send
   // time from contacts.name, so a fixed campaign-wide value isn't required.
@@ -37,9 +39,9 @@ export function createCampaign(
     );
   }
   const info = db
-    .prepare(`INSERT INTO campaigns (name, template_id, variable_values) VALUES (?, ?, ?)`)
-    .run(name, templateId, JSON.stringify(variableValues));
-  return getCampaignById(db, info.lastInsertRowid as number)!;
+    .prepare(`INSERT INTO campaigns (owner, name, template_id, variable_values) VALUES (?, ?, ?, ?)`)
+    .run(owner, name, templateId, JSON.stringify(variableValues));
+  return getCampaignById(db, owner, info.lastInsertRowid as number)!;
 }
 
 /**
@@ -49,28 +51,28 @@ export function createCampaign(
  * and marked personalize_name so each recipient gets their own name filled
  * in automatically at send time.
  */
-export function createQuickCampaign(db: Database.Database, name: string, message: string): Campaign {
+export function createQuickCampaign(db: Database.Database, owner: string, name: string, message: string): Campaign {
   const personalizeName = message.includes('{{name}}');
   const bodyText = personalizeName ? message.replace(/\{\{name\}\}/g, '{{1}}') : message;
 
-  const template = registerTemplate(db, {
+  const template = registerTemplate(db, owner, {
     name: `${name}-${Date.now()}`,
     bodyText,
     variableCount: personalizeName ? 1 : 0,
     personalizeName,
   });
 
-  return createCampaign(db, name, template.id, []);
+  return createCampaign(db, owner, name, template.id, []);
 }
 
 /** Creates a quick campaign from just a message and sends it immediately -- the one-click flow from the Home page. */
-export async function sendNow(db: Database.Database, message: string): Promise<SendSummary> {
-  const campaign = createQuickCampaign(db, `Broadcast ${new Date().toISOString()}`, message);
-  return sendCampaign(db, campaign.id);
+export async function sendNow(db: Database.Database, owner: string, message: string): Promise<SendSummary> {
+  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, message);
+  return sendCampaign(db, owner, campaign.id);
 }
 
-export function getCampaignById(db: Database.Database, id: number): Campaign | undefined {
-  return db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as Campaign | undefined;
+export function getCampaignById(db: Database.Database, owner: string, id: number): Campaign | undefined {
+  return db.prepare('SELECT * FROM campaigns WHERE id = ? AND owner = ?').get(id, owner) as Campaign | undefined;
 }
 
 export interface CampaignWithStats extends Campaign {
@@ -81,7 +83,7 @@ export interface CampaignWithStats extends Campaign {
   failed: number;
 }
 
-export function listCampaignsWithStats(db: Database.Database): CampaignWithStats[] {
+export function listCampaignsWithStats(db: Database.Database, owner: string): CampaignWithStats[] {
   return db
     .prepare(
       `SELECT c.*, t.name as template_name,
@@ -92,10 +94,11 @@ export function listCampaignsWithStats(db: Database.Database): CampaignWithStats
        FROM campaigns c
        LEFT JOIN templates t ON t.id = c.template_id
        LEFT JOIN campaign_recipients cr ON cr.campaign_id = c.id
+       WHERE c.owner = ?
        GROUP BY c.id
        ORDER BY c.id DESC`
     )
-    .all() as CampaignWithStats[];
+    .all(owner) as CampaignWithStats[];
 }
 
 export interface CampaignRecipientDetail {
@@ -111,26 +114,29 @@ export interface CampaignRecipientDetail {
   read_at: string | null;
 }
 
-export function getCampaignRecipients(db: Database.Database, campaignId: number): CampaignRecipientDetail[] {
+export function getCampaignRecipients(db: Database.Database, owner: string, campaignId: number): CampaignRecipientDetail[] {
   return db
     .prepare(
       `SELECT cr.id, cr.contact_id, ct.phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at
        FROM campaign_recipients cr
        JOIN contacts ct ON ct.id = cr.contact_id
-       WHERE cr.campaign_id = ?
+       JOIN campaigns c ON c.id = cr.campaign_id
+       WHERE cr.campaign_id = ? AND c.owner = ?
        ORDER BY cr.id`
     )
-    .all(campaignId) as CampaignRecipientDetail[];
+    .all(campaignId, owner) as CampaignRecipientDetail[];
 }
 
-function countRecentlyMessaged(db: Database.Database): number {
-  // Unique contacts sent a message (any campaign) in the last 24h -- proxy for tier usage.
+function countRecentlyMessaged(db: Database.Database, owner: string): number {
+  // Unique contacts sent a message (any campaign) in the last 24h, for this
+  // owner's own WhatsApp session -- proxy for that account's tier usage.
   const row = db
     .prepare(
-      `SELECT COUNT(DISTINCT contact_id) as n FROM campaign_recipients
-       WHERE sent_at IS NOT NULL AND sent_at >= datetime('now', '-1 day')`
+      `SELECT COUNT(DISTINCT cr.contact_id) as n FROM campaign_recipients cr
+       JOIN campaigns c ON c.id = cr.campaign_id
+       WHERE c.owner = ? AND cr.sent_at IS NOT NULL AND cr.sent_at >= datetime('now', '-1 day')`
     )
-    .get() as { n: number };
+    .get(owner) as { n: number };
   return row.n;
 }
 
@@ -139,15 +145,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Sends a campaign to all opted-in contacts not already recorded for it.
- * Stops queuing new sends once the rolling 24h tier limit would be exceeded --
- * re-running this later resumes with whoever's left (idempotent via the
- * campaign_recipients UNIQUE(campaign_id, contact_id) constraint).
+ * Sends a campaign to all of this owner's opted-in contacts not already
+ * recorded for it. Stops queuing new sends once the rolling 24h tier limit
+ * would be exceeded -- re-running this later resumes with whoever's left
+ * (idempotent via the campaign_recipients UNIQUE(campaign_id, contact_id)
+ * constraint).
  */
-export async function sendCampaign(db: Database.Database, campaignId: number): Promise<SendSummary> {
-  const campaign = getCampaignById(db, campaignId);
+export async function sendCampaign(db: Database.Database, owner: string, campaignId: number): Promise<SendSummary> {
+  const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
-  const template = getTemplateById(db, campaign.template_id) as MessageTemplate;
+  const template = getTemplateById(db, owner, campaign.template_id) as MessageTemplate;
   const fixedVariableValues: string[] = JSON.parse(campaign.variable_values ?? '[]');
 
   db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
@@ -163,10 +170,10 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
     ).map((r) => r.contact_id)
   );
 
-  const candidates: Contact[] = listOptedInContacts(db).filter((c) => !alreadyDone.has(c.id));
+  const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
 
   const summary: SendSummary = { campaignId, totalTargeted: candidates.length, sent: 0, failed: 0, throttledOut: 0 };
-  let recentlyMessaged = countRecentlyMessaged(db);
+  let recentlyMessaged = countRecentlyMessaged(db, owner);
   const intervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
 
   const upsertRecipient = db.prepare(
@@ -184,7 +191,7 @@ export async function sendCampaign(db: Database.Database, campaignId: number): P
 
     try {
       const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
-      const result = await sendCampaignMessage(contact.phone, template, variableValues);
+      const result = await sendCampaignMessage(owner, contact.phone, template, variableValues);
       upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
       summary.sent++;
       recentlyMessaged++;

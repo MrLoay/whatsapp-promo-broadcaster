@@ -7,25 +7,27 @@ import { createQuickCampaign, sendCampaign, getCampaignById } from '../src/servi
 import { getTemplateById } from '../src/services/templates';
 import { createApp } from '../src/server';
 
+const OWNER = 'flowers';
+
 describe('quick campaign creation', () => {
   let db: Database.Database;
 
   beforeEach(() => {
     db = openDb(':memory:');
-    importContactsFromCsv(db, `phone,name\n+15551111111,Alice\n+15552222222,Bob`);
+    importContactsFromCsv(db, OWNER, `phone,name\n+15551111111,Alice\n+15552222222,Bob`);
   });
 
   it('creates a plain-message campaign with no personalization needed', () => {
-    const campaign = createQuickCampaign(db, 'Weekend Deal', 'Enjoy 20% off this weekend!');
+    const campaign = createQuickCampaign(db, OWNER, 'Weekend Deal', 'Enjoy 20% off this weekend!');
     expect(campaign.status).toBe('draft');
-    const template = getTemplateById(db, campaign.template_id);
+    const template = getTemplateById(db, OWNER, campaign.template_id);
     expect(template?.personalize_name).toBe(0);
     expect(template?.body_text).toBe('Enjoy 20% off this weekend!');
   });
 
   it('detects {{name}} and marks the template for per-recipient personalization', () => {
-    const campaign = createQuickCampaign(db, 'Weekend Deal', 'Hi {{name}}, enjoy 20% off!');
-    const template = getTemplateById(db, campaign.template_id);
+    const campaign = createQuickCampaign(db, OWNER, 'Weekend Deal', 'Hi {{name}}, enjoy 20% off!');
+    const template = getTemplateById(db, OWNER, campaign.template_id);
     expect(template?.personalize_name).toBe(1);
     expect(template?.variable_count).toBe(1);
     expect(template?.body_text).toBe('Hi {{1}}, enjoy 20% off!');
@@ -37,14 +39,14 @@ describe('personalized send substitutes each recipient\'s own name', () => {
 
   beforeEach(() => {
     db = openDb(':memory:');
-    importContactsFromCsv(db, `phone,name\n+15551111111,Alice\n+15552222222,Bob`);
+    importContactsFromCsv(db, OWNER, `phone,name\n+15551111111,Alice\n+15552222222,Bob`);
   });
 
   it('sends each contact their own name, not a shared value', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const campaign = createQuickCampaign(db, 'Weekend Deal', 'Hi {{name}}, enjoy 20% off!');
+    const campaign = createQuickCampaign(db, OWNER, 'Weekend Deal', 'Hi {{name}}, enjoy 20% off!');
 
-    await sendCampaign(db, campaign.id);
+    await sendCampaign(db, OWNER, campaign.id);
 
     const loggedText = logSpy.mock.calls.map((args) => args.join(' ')).join('\n');
     expect(loggedText).toContain('Hi Alice, enjoy 20% off!');
@@ -60,7 +62,7 @@ describe('POST /campaigns/quick', () => {
   beforeEach(async () => {
     db = openDb(':memory:');
     setDbForTests(db);
-    importContactsFromCsv(db, `phone,name\n+15551111111,Alice`);
+    importContactsFromCsv(db, 'testuser', `phone,name\n+15551111111,Alice`);
     const app = createApp();
     agent = request.agent(app);
     await agent.post('/auth/login').send({ username: 'testuser', password: 'testpass123' });

@@ -14,18 +14,18 @@ import { requireAuth } from '../auth';
 export const campaignsRouter = Router();
 campaignsRouter.use(requireAuth);
 
-campaignsRouter.get('/campaigns', (_req, res) => {
-  res.json(listCampaignsWithStats(getDb()));
+campaignsRouter.get('/campaigns', (req, res) => {
+  res.json(listCampaignsWithStats(getDb(), req.session.username!));
 });
 
 campaignsRouter.get('/campaigns/:id', (req, res) => {
-  const campaign = getCampaignById(getDb(), Number(req.params.id));
+  const campaign = getCampaignById(getDb(), req.session.username!, Number(req.params.id));
   if (!campaign) return res.sendStatus(404);
   res.json(campaign);
 });
 
 campaignsRouter.get('/campaigns/:id/recipients', (req, res) => {
-  res.json(getCampaignRecipients(getDb(), Number(req.params.id)));
+  res.json(getCampaignRecipients(getDb(), req.session.username!, Number(req.params.id)));
 });
 
 campaignsRouter.post('/campaigns', (req, res) => {
@@ -34,7 +34,7 @@ campaignsRouter.post('/campaigns', (req, res) => {
     return res.status(400).json({ error: 'name and templateId are required' });
   }
   try {
-    const campaign = createCampaign(getDb(), name, templateId, variableValues ?? []);
+    const campaign = createCampaign(getDb(), req.session.username!, name, templateId, variableValues ?? []);
     res.status(201).json(campaign);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -49,7 +49,7 @@ campaignsRouter.post('/campaigns/quick', (req, res) => {
     return res.status(400).json({ error: 'name and message are required' });
   }
   try {
-    const campaign = createQuickCampaign(getDb(), name, message);
+    const campaign = createQuickCampaign(getDb(), req.session.username!, name, message);
     res.status(201).json(campaign);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -64,7 +64,7 @@ campaignsRouter.post('/campaigns/send-now', async (req, res) => {
     return res.status(400).json({ error: 'message is required' });
   }
   try {
-    const summary = await sendNow(getDb(), message);
+    const summary = await sendNow(getDb(), req.session.username!, message);
     res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
@@ -73,7 +73,7 @@ campaignsRouter.post('/campaigns/send-now', async (req, res) => {
 
 campaignsRouter.post('/campaigns/:id/send', async (req, res) => {
   try {
-    const summary = await sendCampaign(getDb(), Number(req.params.id));
+    const summary = await sendCampaign(getDb(), req.session.username!, Number(req.params.id));
     res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

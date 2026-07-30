@@ -6,6 +6,8 @@ import { createApp } from '../src/server';
 import { registerTemplate } from '../src/services/templates';
 import { createCampaign, sendCampaign } from '../src/services/campaigns';
 
+const OWNER = 'testuser'; // matches the login credentials used below
+
 describe('dashboard-facing routes', () => {
   let db: Database.Database;
   let app: ReturnType<typeof createApp>;
@@ -29,10 +31,10 @@ describe('dashboard-facing routes', () => {
   });
 
   it('lists campaigns with per-status recipient stats via GET /campaigns', async () => {
-    const template = registerTemplate(db, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
-    const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
-    db.prepare(`INSERT INTO contacts (phone, opt_in_status) VALUES ('+15551111111', 'opted_in')`).run();
-    await sendCampaign(db, campaign.id);
+    const template = registerTemplate(db, OWNER, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
+    const campaign = createCampaign(db, OWNER, 'Summer Sale', template.id, ['20%']);
+    db.prepare(`INSERT INTO contacts (owner, phone, opt_in_status) VALUES (?, '+15551111111', 'opted_in')`).run(OWNER);
+    await sendCampaign(db, OWNER, campaign.id);
 
     const res = await agent.get('/campaigns');
     expect(res.status).toBe(200);
@@ -42,10 +44,10 @@ describe('dashboard-facing routes', () => {
   });
 
   it('returns per-recipient detail via GET /campaigns/:id/recipients', async () => {
-    const template = registerTemplate(db, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
-    const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
-    db.prepare(`INSERT INTO contacts (phone, name, opt_in_status) VALUES ('+15551111111', 'Alice', 'opted_in')`).run();
-    await sendCampaign(db, campaign.id);
+    const template = registerTemplate(db, OWNER, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
+    const campaign = createCampaign(db, OWNER, 'Summer Sale', template.id, ['20%']);
+    db.prepare(`INSERT INTO contacts (owner, phone, name, opt_in_status) VALUES (?, '+15551111111', 'Alice', 'opted_in')`).run(OWNER);
+    await sendCampaign(db, OWNER, campaign.id);
 
     const res = await agent.get(`/campaigns/${campaign.id}/recipients`);
     expect(res.status).toBe(200);
@@ -55,7 +57,7 @@ describe('dashboard-facing routes', () => {
   });
 
   it('lists inbound messages via GET /inbound-messages', async () => {
-    db.prepare(`INSERT INTO inbound_messages (contact_phone, body, triggered_opt_out) VALUES ('+15551111111', 'STOP', 1)`).run();
+    db.prepare(`INSERT INTO inbound_messages (owner, contact_phone, body, triggered_opt_out) VALUES (?, '+15551111111', 'STOP', 1)`).run(OWNER);
 
     const res = await agent.get('/inbound-messages');
     expect(res.status).toBe(200);
@@ -76,12 +78,12 @@ describe('dashboard-facing routes', () => {
   });
 
   it('DELETE /contacts/:id removes the contact and their send history', async () => {
-    const add = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice', opted_in: true });
+    const add = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice' });
     const contactId = add.body.id;
 
-    const template = registerTemplate(db, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
-    const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
-    await sendCampaign(db, campaign.id);
+    const template = registerTemplate(db, OWNER, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off!', variableCount: 1 });
+    const campaign = createCampaign(db, OWNER, 'Summer Sale', template.id, ['20%']);
+    await sendCampaign(db, OWNER, campaign.id);
     expect(db.prepare('SELECT COUNT(*) as n FROM campaign_recipients WHERE contact_id = ?').get(contactId).n).toBe(1);
 
     const del = await agent.delete(`/contacts/${contactId}`);
@@ -111,5 +113,21 @@ describe('dashboard-facing routes', () => {
   it('POST /campaigns/send-now requires a message', async () => {
     const res = await agent.post('/campaigns/send-now').send({});
     expect(res.status).toBe(400);
+  });
+
+  it('one dashboard account never sees another account\'s contacts or campaigns', async () => {
+    await agent.post('/contacts').send({ phone: '+15551111111', name: 'Alice' });
+
+    // A second account's data, inserted directly (simulating a separate boutique).
+    db.prepare(`INSERT INTO contacts (owner, phone, name, opt_in_status) VALUES ('otheruser', '+15559999999', 'Zoe', 'opted_in')`).run();
+    const otherTemplate = registerTemplate(db, 'otheruser', { name: 'other-template', bodyText: 'Hello', variableCount: 0 });
+    createCampaign(db, 'otheruser', 'Other Campaign', otherTemplate.id, []);
+
+    const contacts = await agent.get('/contacts');
+    expect(contacts.body).toHaveLength(1);
+    expect(contacts.body[0].phone).toBe('+15551111111');
+
+    const campaigns = await agent.get('/campaigns');
+    expect(campaigns.body).toHaveLength(0);
   });
 });

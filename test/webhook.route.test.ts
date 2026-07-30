@@ -38,10 +38,10 @@ describe('webhook route', () => {
   });
 
   it('updates campaign_recipients status on a delivery status webhook event', async () => {
-    importContactsFromCsv(db, `phone,name\n+15551111111,Alice`);
-    const template = registerTemplate(db, { name: 'summer-sale', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
-    const campaign = createCampaign(db, 'Summer Sale', template.id, ['20%']);
-    await sendCampaign(db, campaign.id);
+    importContactsFromCsv(db, 'testuser', `phone,name\n+15551111111,Alice`);
+    const template = registerTemplate(db, 'testuser', { name: 'summer-sale', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
+    const campaign = createCampaign(db, 'testuser', 'Summer Sale', template.id, ['20%']);
+    await sendCampaign(db, 'testuser', campaign.id);
 
     const recipient = db.prepare('SELECT * FROM campaign_recipients LIMIT 1').get() as any;
 
@@ -70,7 +70,7 @@ describe('webhook route', () => {
   });
 
   it('marks a contact opted_out when they reply STOP', async () => {
-    importContactsFromCsv(db, `phone,name\n+15551111111,Alice`);
+    importContactsFromCsv(db, 'testuser', `phone,name\n+15551111111,Alice`);
 
     const payload = {
       entry: [
