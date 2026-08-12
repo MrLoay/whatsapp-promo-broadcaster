@@ -5,6 +5,7 @@ import { markOptedOut } from '../services/contacts';
 import { recordDeliveryStatus } from '../services/campaigns';
 import { isOptOutMessage } from '../services/optOut';
 import { updateAccountStatus } from '../services/accounts';
+import { config } from '../config';
 
 /**
  * Attaches inbound-message and delivery-ack listeners for one owner's
