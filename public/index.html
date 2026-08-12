@@ -16,32 +16,78 @@
     <div class="card" style="margin-top:20px;">
       <h2 data-i18n="home.send.heading">Send a message now</h2>
       <p class="muted" data-i18n="home.send.desc">Sends to every contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
+      
       <form id="sendNowForm">
+        <div style="margin-bottom: 16px;">
+          <label for="accountSelect">Target Sending Account / Proxy</label>
+          <select id="accountSelect" name="account" style="width: 100%; max-width: 400px;">
+            <option value="all">All Active Accounts (Round-Robin)</option>
+          </select>
+        </div>
+
         <textarea name="message" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!"></textarea><br /><br />
         <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
       </form>
       <div class="error" id="sendNowError"></div>
-      <div class="muted" id="sendNowResult"></div>
+      <div class="muted" id="sendNowResult" style="margin-top: 10px;"></div>
     </div>
   </main>
   <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
+    let globalContacts = [];
+    let globalCampaigns = [];
+    let globalAccounts = [];
+
+    async function loadAccountsDropdown() {
+      try {
+        globalAccounts = await api('/accounts');
+        const select = document.getElementById('accountSelect');
+        select.innerHTML = '<option value="all">All Active Accounts (Round-Robin)</option>';
+        globalAccounts.forEach((acc) => {
+          const opt = document.createElement('option');
+          opt.value = acc.id;
+          opt.textContent = `${acc.account_name || acc.id} (${acc.status})`;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.warn('Failed to load accounts list', err);
+      }
+    }
+
     async function loadStats() {
       const [contacts, campaigns] = await Promise.all([api('/contacts'), api('/campaigns')]);
-      const optedIn = contacts.filter((c) => c.opt_in_status === 'opted_in').length;
-      const optedOut = contacts.filter((c) => c.opt_in_status === 'opted_out').length;
+      globalContacts = contacts;
+      globalCampaigns = campaigns;
+      updateMetricsDisplay();
+    }
+
+    function updateMetricsDisplay() {
+      const selectedAccount = document.getElementById('accountSelect').value;
+      let targetContacts = globalContacts;
+
+      const totalContacts = targetContacts.length;
+      const optedIn = targetContacts.filter((c) => c.opt_in_status === 'opted_in').length;
+      const optedOut = targetContacts.filter((c) => c.opt_in_status === 'opted_out').length;
+
+      let totalSentCount = 0;
+      globalCampaigns.forEach((c) => {
+        totalSentCount += (c.sent || 0) + (c.delivered || 0) + (c.read || 0);
+      });
+
       const stats = [
-        [t('home.stat.contacts'), contacts.length],
+        [t('home.stat.contacts'), totalContacts],
         [t('home.stat.optedIn'), optedIn],
         [t('home.stat.optedOut'), optedOut],
-        [t('home.stat.campaigns'), campaigns.length],
+        [t('home.stat.campaigns'), totalSentCount],
       ];
+
       document.getElementById('stats').innerHTML = stats
         .map(([label, n]) => `<div class="stat"><div class="n">${n}</div><div class="label">${label}</div></div>`)
         .join('');
-      return optedIn;
     }
+
+    document.getElementById('accountSelect').addEventListener('change', updateMetricsDisplay);
 
     document.getElementById('sendNowForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -51,15 +97,21 @@
       errorEl.textContent = '';
       resultEl.textContent = '';
 
-      const optedIn = await loadStats();
-      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}`)) return;
+      const optedIn = globalContacts.filter((c) => c.opt_in_status === 'opted_in').length;
+      const selectedAccount = document.getElementById('accountSelect').value;
+      const accountLabel = selectedAccount === 'all' ? 'All Active Accounts' : selectedAccount;
+
+      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel})`)) return;
 
       const btn = form.querySelector('button');
       const originalLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = t('home.send.sending');
       try {
-        const summary = await api('/campaigns/send-now', { method: 'POST', body: JSON.stringify({ message: form.message.value }) });
+        const summary = await api('/campaigns/send-now', {
+          method: 'POST',
+          body: JSON.stringify({ message: form.message.value, accountId: selectedAccount })
+        });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
         form.reset();
         await loadStats();
@@ -72,6 +124,7 @@
 
     (async () => {
       await renderNav('index.html');
+      await loadAccountsDropdown();
       await loadStats();
     })();
   </script>

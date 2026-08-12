@@ -3,99 +3,248 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WhatsApp - Boutique Broadcast</title>
+  <title>WhatsApp Account Manager - Boutique Broadcast</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    #qrBox { text-align: center; padding: 20px; }
-    #qrBox img { max-width: 280px; width: 100%; border: 8px solid white; border-radius: 8px; }
-    .status-line { font-size: 15px; margin-bottom: 16px; }
+    .accounts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .account-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .account-card .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .account-card .title {
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .account-card .proxy-info {
+      font-size: 12px;
+      color: var(--muted);
+      word-break: break-all;
+      margin-bottom: 12px;
+    }
+    .qr-container {
+      text-align: center;
+      padding: 10px 0;
+    }
+    .qr-container img {
+      max-width: 220px;
+      width: 100%;
+      border: 4px solid white;
+      border-radius: 8px;
+    }
+    .badge.DISCONNECTED { background: #fee2e2; color: #7f1d1d; }
+    .badge.CONNECTING { background: #fef3c7; color: #78350f; }
+    .badge.QR_READY { background: #e0f2fe; color: #0369a1; }
+    .badge.READY { background: #dcfce7; color: #14532d; }
+    .badge.BANNED { background: #450a0a; color: #fca5a5; }
+
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+    }
   </style>
 </head>
 <body>
   <nav id="nav"></nav>
   <div class="mode-banner" id="mode-banner"></div>
   <main>
-    <h1 data-i18n="whatsapp.heading">WhatsApp connection</h1>
-    <div class="card">
-      <div class="status-line" id="statusLine" data-i18n="whatsapp.checking">Checking...</div>
-      <div id="needsLiveMode" style="display:none;" class="muted" data-i18n="whatsapp.needsLive">
-        Test mode is currently on. Turn it off to connect a real WhatsApp account, then reload this page.
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h1 style="margin:0;">WhatsApp Accounts & Proxies</h1>
+      <button id="openAddModalBtn">+ Add Account</button>
+    </div>
+
+    <div id="needsLiveMode" style="display:none;" class="card muted">
+      Test mode (DRY_RUN) is currently on. Turn it off to connect real WhatsApp sessions with proxies.
+    </div>
+
+    <div class="accounts-grid" id="accountsGrid"></div>
+
+    <div class="error" id="globalError" style="margin-top: 16px;"></div>
+
+    <!-- Add Account Modal -->
+    <div class="modal-backdrop" id="addModal" style="display: none;">
+      <div class="modal">
+        <h2>Add WhatsApp Account</h2>
+        <form id="addAccountForm">
+          <div style="margin-bottom: 12px;">
+            <label>Account ID / Username</label>
+            <input type="text" name="id" required placeholder="e.g. store_boutique_1" style="width:100%;" />
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label>Account Display Name</label>
+            <input type="text" name="account_name" required placeholder="e.g. Downtown Boutique" style="width:100%;" />
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label>Dedicated Proxy URL (Optional)</label>
+            <input type="text" name="proxy_url" placeholder="http://user:pass@1.2.3.4:8080 or socks5://..." style="width:100%;" />
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="secondary" id="closeAddModalBtn">Cancel</button>
+            <button type="submit">Connect Account</button>
+          </div>
+        </form>
       </div>
-      <div id="connectArea" style="display:none;">
-        <button id="connectBtn" data-i18n="whatsapp.connectButton">Connect WhatsApp</button>
-      </div>
-      <div id="qrBox" style="display:none;">
-        <p data-i18n="whatsapp.scanInstructions">Scan this with WhatsApp on your phone: Settings &gt; Linked Devices &gt; Link a Device</p>
-        <img id="qrImg" src="" alt="WhatsApp QR code" /><br /><br />
-        <button id="cancelBtn" class="secondary" data-i18n="whatsapp.cancel">Cancel</button>
-      </div>
-      <div id="readyBox" style="display:none;">
-        <p style="color: var(--success); font-weight: 600;" data-i18n="whatsapp.connected">Connected. You can send messages now.</p>
-        <button id="disconnectBtn" class="danger" data-i18n="whatsapp.disconnect">Disconnect</button>
-      </div>
-      <div id="errorBox" class="error"></div>
     </div>
   </main>
+
   <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
-    let polling = null;
+    let eventSource = null;
 
-    function show(id) {
-      ['connectArea', 'qrBox', 'readyBox', 'needsLiveMode'].forEach(
-        (i) => (document.getElementById(i).style.display = i === id ? 'block' : 'none')
-      );
-    }
-
-    async function poll() {
-      const state = await api('/whatsapp/status');
-      const statusLine = document.getElementById('statusLine');
-      const errorBox = document.getElementById('errorBox');
-      errorBox.textContent = state.error || '';
-
-      const health = await fetch('/health').then((r) => r.json());
-      if (health.dryRun) {
-        statusLine.textContent = `${t('whatsapp.statusPrefix')} ${t('whatsapp.statusDryRun')}`;
-        show('needsLiveMode');
-        clearInterval(polling);
+    function renderAccounts(states) {
+      const grid = document.getElementById('accountsGrid');
+      if (!states || states.length === 0) {
+        grid.innerHTML = '<div class="card muted" style="grid-column: 1/-1;">No accounts connected yet. Click "+ Add Account" to configure one.</div>';
         return;
       }
 
-      statusLine.textContent = `${t('whatsapp.statusPrefix')} ${state.status}`;
-      if (state.status === 'ready') {
-        show('readyBox');
-      } else if (state.status === 'qr' && state.qrDataUrl) {
-        document.getElementById('qrImg').src = state.qrDataUrl;
-        show('qrBox');
-      } else {
-        show('connectArea');
+      grid.innerHTML = states.map((acc) => {
+        const displayStatus = acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : acc.dbStatus;
+        const proxyText = acc.proxy_url ? escapeHtml(acc.proxy_url) : 'Direct Connection (No Proxy)';
+
+        let statusBadgeClass = displayStatus;
+        if (displayStatus === 'READY') statusBadgeClass = 'READY';
+        else if (displayStatus === 'QR' || displayStatus === 'QR_READY') statusBadgeClass = 'QR_READY';
+        else if (displayStatus === 'CONNECTING' || displayStatus === 'AUTHENTICATED') statusBadgeClass = 'CONNECTING';
+        else statusBadgeClass = 'DISCONNECTED';
+
+        let qrHtml = '';
+        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr) {
+          qrHtml = `
+            <div class="qr-container">
+              <p style="font-size:12px;" class="muted">Scan with WhatsApp Linked Devices:</p>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(acc.qr)}&size=220x220" alt="QR Code" />
+            </div>
+          `;
+        }
+
+        return `
+          <div class="account-card">
+            <div>
+              <div class="header">
+                <span class="title">${escapeHtml(acc.account_name || acc.id)}</span>
+                <span class="badge ${statusBadgeClass}">${displayStatus}</span>
+              </div>
+              <div class="proxy-info"><strong>Proxy:</strong> ${proxyText}</div>
+              ${acc.error ? `<div class="error" style="font-size:12px; margin-bottom:8px;">${escapeHtml(acc.error)}</div>` : ''}
+              ${qrHtml}
+            </div>
+            <div style="margin-top: 12px; text-align: right;">
+              ${displayStatus !== 'DISCONNECTED' ? `
+                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}')">Disconnect</button>
+              ` : `
+                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}')">Connect</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function reconnectAccount(id, name, proxyUrl) {
+      try {
+        await api('/whatsapp/connect', {
+          method: 'POST',
+          body: JSON.stringify({ id, account_name: name, proxy_url: proxyUrl || undefined })
+        });
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
       }
     }
 
-    document.getElementById('connectBtn').addEventListener('click', async () => {
+    async function disconnectAccount(id) {
+      if (!confirm(`Disconnect account ${id}?`)) return;
       try {
-        await api('/whatsapp/connect', { method: 'POST' });
+        await api('/whatsapp/disconnect', {
+          method: 'POST',
+          body: JSON.stringify({ id })
+        });
       } catch (err) {
-        document.getElementById('errorBox').textContent = err.message;
-      }
-    });
-
-    async function disconnect() {
-      if (!confirm(t('whatsapp.disconnectConfirm'))) return;
-      try {
-        await api('/whatsapp/disconnect', { method: 'POST' });
-        await poll();
-      } catch (err) {
-        document.getElementById('errorBox').textContent = err.message;
+        document.getElementById('globalError').textContent = err.message;
       }
     }
-    document.getElementById('disconnectBtn').addEventListener('click', disconnect);
-    document.getElementById('cancelBtn').addEventListener('click', disconnect);
+
+    function initSSE() {
+      if (eventSource) eventSource.close();
+      eventSource = new EventSource('/whatsapp/events');
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.states) {
+            renderAccounts(data.states);
+          }
+        } catch (e) {
+          console.error('Failed to parse SSE payload', e);
+        }
+      };
+      eventSource.onerror = () => {
+        console.warn('SSE connection interrupted, retrying...');
+      };
+    }
+
+    // Modal Handlers
+    document.getElementById('openAddModalBtn').onclick = () => {
+      document.getElementById('addModal').style.display = 'flex';
+    };
+    document.getElementById('closeAddModalBtn').onclick = () => {
+      document.getElementById('addModal').style.display = 'none';
+    };
+
+    document.getElementById('addAccountForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const id = form.id.value.trim();
+      const account_name = form.account_name.value.trim();
+      const proxy_url = form.proxy_url.value.trim();
+
+      try {
+        await api('/whatsapp/connect', {
+          method: 'POST',
+          body: JSON.stringify({ id, account_name, proxy_url: proxy_url || null })
+        });
+        document.getElementById('addModal').style.display = 'none';
+        form.reset();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
 
     (async () => {
       await renderNav('whatsapp.html');
-      await poll();
-      polling = setInterval(poll, 2000);
+      const health = await fetch('/health').then((r) => r.json());
+      if (health.dryRun) {
+        document.getElementById('needsLiveMode').style.display = 'block';
+      }
+      initSSE();
     })();
   </script>
 </body>
