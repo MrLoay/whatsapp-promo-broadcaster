@@ -62,9 +62,14 @@ if (require.main === module) {
     // QR scan; if not, it just sits idle until that account clicks Connect.
     const { getDb } = require('./db');
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
+    const { getAccountById } = require('./services/accounts');
     try {
       const users = JSON.parse(config.dashboard.users) as { username: string }[];
-      for (const { username } of users) startWebJsListeners(getDb(), username);
+      const db = getDb();
+      for (const { username } of users) {
+        const account = getAccountById(db, username);
+        startWebJsListeners(db, username, account?.proxy_url);
+      }
     } catch (err) {
       console.error('Failed to parse DASHBOARD_USERS for WhatsApp auto-reconnect:', (err as Error).message);
     }

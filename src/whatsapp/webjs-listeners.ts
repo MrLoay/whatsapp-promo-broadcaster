@@ -4,6 +4,7 @@ import { getWebJsClient, ensureReady } from './webjs-client';
 import { markOptedOut } from '../services/contacts';
 import { recordDeliveryStatus } from '../services/campaigns';
 import { isOptOutMessage } from '../services/optOut';
+import { updateAccountStatus } from '../services/accounts';
 
 /**
  * Attaches inbound-message and delivery-ack listeners for one owner's
@@ -12,9 +13,19 @@ import { isOptOutMessage } from '../services/optOut';
  * Safe to call more than once for the same owner -- skips re-attaching if
  * this client instance already has listeners.
  */
-export function startWebJsListeners(db: Database.Database, owner: string): void {
-  const client = getWebJsClient(owner);
+export function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): void {
+  const client = getWebJsClient(owner, proxyUrl);
   if (client.listenerCount('message') > 0) return; // already wired up for this client instance
+
+  updateAccountStatus(db, owner, 'CONNECTING');
+
+  client.on('qr', () => {
+    updateAccountStatus(db, owner, 'QR_READY');
+  });
+
+  client.on('ready', () => {
+    updateAccountStatus(db, owner, 'READY');
+  });
 
   client.on('message', (message: Message) => {
     const phone = `+${message.from.replace('@c.us', '')}`;
@@ -37,8 +48,44 @@ export function startWebJsListeners(db: Database.Database, owner: string): void 
   });
 
   client.on('disconnected', (reason: WAState | string) => {
+    updateAccountStatus(db, owner, 'DISCONNECTED');
     console.error(`[${owner}] whatsapp-web.js: session disconnected (${reason}). Reconnect via the dashboard's WhatsApp page.`);
   });
 
-  ensureReady(owner).catch((err) => console.error(`[${owner}] whatsapp-web.js failed to start:`, err.message));
+  // Connection Health Check / Heartbeat
+  const heartbeatInterval = setInterval(async () => {
+    try {
+      if (client && client.pupPage && !client.pupPage.isClosed()) {
+        const state = await client.getState();
+        if (state === 'CONNECTED') {
+          updateAccountStatus(db, owner, 'READY');
+        } else if (state === 'UNPAIRED' || state === 'UNLAUNCHED') {
+          updateAccountStatus(db, owner, 'DISCONNECTED');
+        }
+      }
+    } catch (err) {
+      console.warn(`[${owner}] Heartbeat check failed:`, (err as Error).message);
+    }
+  }, config.whatsapp.heartbeatIntervalMs);
+
+  // Prevent memory leaks on listener detachment
+  client.on('disconnected', () => clearInterval(heartbeatInterval));
+
+  // Exponential Backoff auto-connect helper
+  const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
+    try {
+      await ensureReady(owner, proxyUrl);
+    } catch (err) {
+      updateAccountStatus(db, owner, 'DISCONNECTED');
+      if (attempt < maxAttempts) {
+        const delayMs = Math.pow(2, attempt) * 1000;
+        console.warn(`[${owner}] Connection attempt ${attempt} failed: ${(err as Error).message}. Retrying in ${delayMs}ms...`);
+        setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
+      } else {
+        console.error(`[${owner}] All ${maxAttempts} connection attempts failed. Giving up.`);
+      }
+    }
+  };
+
+  connectWithRetry();
 }

@@ -62,6 +62,17 @@ CREATE TABLE IF NOT EXISTS inbound_messages (
 CREATE INDEX IF NOT EXISTS idx_campaign_recipients_wamid ON campaign_recipients(wamid);
 CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign ON campaign_recipients(campaign_id);
 
+CREATE TABLE IF NOT EXISTS accounts (
+  id TEXT PRIMARY KEY,
+  account_name TEXT,
+  proxy_url TEXT,
+  status TEXT NOT NULL DEFAULT 'DISCONNECTED' CHECK (status IN ('DISCONNECTED', 'CONNECTING', 'QR_READY', 'READY', 'BANNED')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_active TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
+
 -- Indexes on the `owner` column are NOT created here on purpose: this file
 -- runs unconditionally via CREATE TABLE/INDEX IF NOT EXISTS on every boot,
 -- including against pre-existing databases from before multi-tenancy that

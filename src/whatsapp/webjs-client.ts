@@ -38,9 +38,22 @@ export function getConnectionState(owner: string): { status: ConnectionStatus; q
  * Violates WhatsApp's ToS for bulk/automated sending -- carries real ban
  * risk.
  */
-export function getWebJsClient(owner: string): Client {
+export function getWebJsClient(owner: string, proxyUrl?: string | null): Client {
   const s = getSession(owner);
   if (!s.client) {
+    let activeCount = 0;
+    for (const session of sessions.values()) {
+      if (session.client) activeCount++;
+    }
+    if (activeCount >= config.whatsapp.maxConcurrentSessions) {
+      throw new Error(`Max active WhatsApp sessions limit (${config.whatsapp.maxConcurrentSessions}) reached. Cannot launch more Chromium processes.`);
+    }
+
+    const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    if (proxyUrl) {
+      puppeteerArgs.push(`--proxy-server=${proxyUrl}`);
+    }
+
     s.client = new Client({
       // clientId keeps each owner's linked-device session under its own
       // subfolder of the same base path, so sessions never collide.
@@ -52,7 +65,7 @@ export function getWebJsClient(owner: string): Client {
         // is not supported." This app only ever navigates to WhatsApp Web's own
         // origin, not arbitrary untrusted sites, so the reduced sandboxing is
         // an acceptable tradeoff here.
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: puppeteerArgs,
       },
     });
   }
@@ -69,11 +82,11 @@ function resetForRetry(owner: string): void {
   s.readyPromise = null;
 }
 
-export function ensureReady(owner: string): Promise<Client> {
+export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   if (s.readyPromise) return s.readyPromise;
 
-  const c = getWebJsClient(owner);
+  const c = getWebJsClient(owner, proxyUrl);
   s.readyPromise = new Promise((resolve, reject) => {
     c.on('qr', (qr) => {
       s.connectionStatus = 'qr';
@@ -129,6 +142,13 @@ export async function disconnect(owner: string): Promise<void> {
     } catch {
       // Best-effort -- state is already reset above regardless of whether the
       // in-progress session could be gracefully logged out.
+    }
+    try {
+      if (c.pupBrowser) {
+        await c.pupBrowser.close();
+      }
+    } catch {
+      /* process may already be closed */
     }
     try {
       await c.destroy();
