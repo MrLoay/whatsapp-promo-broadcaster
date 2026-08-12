@@ -1,0 +1,20 @@
+{
+  "apps": [
+    {
+      "name": "whatsapp-broadcast",
+      "script": "dist/server.js",
+      "instances": 1,
+      "exec_mode": "fork",
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
+      "error_file": "/root/.pm2/logs/whatsapp-broadcast-error.log",
+      "out_file": "/root/.pm2/logs/whatsapp-broadcast-out.log",
+      "merge_logs": true,
+      "max_size": "10M",
+      "retain": 10,
+      "compress": true
+    }
+  ]
+}

@@ -9,6 +9,8 @@ import { campaignsRouter } from './routes/campaigns';
 import { inboundRouter } from './routes/inbound';
 import { whatsappRouter } from './routes/whatsapp';
 import { authRouter } from './auth';
+import { systemRouter } from './routes/system';
+import { scheduleDbMaintenance } from './services/maintenance';
 
 export function createApp(): Express {
   const app = express();
@@ -48,24 +50,28 @@ export function createApp(): Express {
   app.use(campaignsRouter);
   app.use(inboundRouter);
   app.use(whatsappRouter);
+  app.use(systemRouter);
 
   return app;
 }
 
 if (require.main === module) {
   const app = createApp();
+  const { getDb } = require('./db');
+  const db = getDb();
+
+  // Schedule automated 30-day log purge & VACUUM maintenance task
+  scheduleDbMaintenance(db);
 
   if (!config.dryRun) {
     // Lazy-required so a dry-run boot never pulls in Puppeteer. Each
     // configured dashboard account gets its own WhatsApp session -- if it
     // was previously linked, this resumes it automatically without a new
     // QR scan; if not, it just sits idle until that account clicks Connect.
-    const { getDb } = require('./db');
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
     const { getAccountById } = require('./services/accounts');
     try {
       const users = JSON.parse(config.dashboard.users) as { username: string }[];
-      const db = getDb();
       for (const { username } of users) {
         const account = getAccountById(db, username);
         startWebJsListeners(db, username, account?.proxy_url);

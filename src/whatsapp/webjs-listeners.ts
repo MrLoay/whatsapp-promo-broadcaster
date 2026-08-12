@@ -50,7 +50,15 @@ export function startWebJsListeners(db: Database.Database, owner: string, proxyU
 
   client.on('disconnected', (reason: WAState | string) => {
     updateAccountStatus(db, owner, 'DISCONNECTED');
-    console.error(`[${owner}] whatsapp-web.js: session disconnected (${reason}). Reconnect via the dashboard's WhatsApp page.`);
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'ERROR',
+      category: 'SESSION_DISCONNECTED',
+      owner,
+      proxyUrl: proxyUrl || null,
+      reason,
+      message: `[${owner}] WhatsApp session disconnected. Reason: ${reason}`
+    }));
   });
 
   // Connection Health Check / Heartbeat
@@ -65,7 +73,18 @@ export function startWebJsListeners(db: Database.Database, owner: string, proxyU
         }
       }
     } catch (err) {
-      console.warn(`[${owner}] Heartbeat check failed:`, (err as Error).message);
+      const errorMsg = (err as Error).message;
+      const isProxyErr = errorMsg.includes('net::ERR_PROXY') || errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONNREFUSED');
+      const isSocketErr = errorMsg.includes('WebSocket') || errorMsg.includes('Target closed');
+      
+      console.warn(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'WARN',
+        category: isProxyErr ? 'PROXY_TIMEOUT' : isSocketErr ? 'SOCKET_DEAD' : 'HEARTBEAT_FAILURE',
+        owner,
+        proxyUrl: proxyUrl || null,
+        error: errorMsg
+      }));
     }
   }, config.whatsapp.heartbeatIntervalMs);
 
@@ -77,13 +96,23 @@ export function startWebJsListeners(db: Database.Database, owner: string, proxyU
     try {
       await ensureReady(owner, proxyUrl);
     } catch (err) {
+      const errorMsg = (err as Error).message;
       updateAccountStatus(db, owner, 'DISCONNECTED');
+      
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'ERROR',
+        category: errorMsg.includes('Failed to launch') ? 'CHROMIUM_CRASH' : 'CONNECT_FAILURE',
+        owner,
+        proxyUrl: proxyUrl || null,
+        attempt,
+        maxAttempts,
+        error: errorMsg
+      }));
+
       if (attempt < maxAttempts) {
         const delayMs = Math.pow(2, attempt) * 1000;
-        console.warn(`[${owner}] Connection attempt ${attempt} failed: ${(err as Error).message}. Retrying in ${delayMs}ms...`);
         setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
-      } else {
-        console.error(`[${owner}] All ${maxAttempts} connection attempts failed. Giving up.`);
       }
     }
   };

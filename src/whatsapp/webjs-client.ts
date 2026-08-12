@@ -27,6 +27,14 @@ function getSession(owner: string): Session {
   return session;
 }
 
+export function getActiveSessionCount(): number {
+  let count = 0;
+  for (const session of sessions.values()) {
+    if (session.client) count++;
+  }
+  return count;
+}
+
 export function getConnectionState(owner: string): { status: ConnectionStatus; qr: string | null; error: string | null } {
   const s = getSession(owner);
   return { status: s.connectionStatus, qr: s.connectionStatus === 'qr' ? s.latestQr : null, error: s.lastError };
