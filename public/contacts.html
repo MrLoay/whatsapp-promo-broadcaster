@@ -30,13 +30,17 @@
 
     <div class="card">
       <h2 data-i18n="contacts.bulk.title">Add many contacts at once</h2>
-      <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can type or paste a whole list below. Put one contact on each line, in this order: phone number, name.</p>
+      <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can upload a CSV file or type/paste a list below. Put one contact on each line: phone number, name.</p>
       <div class="card" style="background:var(--bg); margin-bottom:12px;">
         <p class="muted" style="margin:0 0 6px;" data-i18n="contacts.bulk.exampleLabel">Example (copy this pattern):</p>
         <code>phone,name<br />+15551234567,Alice<br />+15559876543,Bob</code>
       </div>
+      <div style="margin-bottom: 16px;">
+        <label style="font-weight: 600; display: block; margin-bottom: 6px;">Upload CSV File:</label>
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" />
+      </div>
       <form id="importForm">
-        <textarea name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name"></textarea><br /><br />
+        <textarea id="csvTextArea" name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name"></textarea><br /><br />
         <button type="submit" data-i18n="contacts.bulk.button">Add these contacts</button>
       </form>
       <div class="error" id="importError"></div>
@@ -106,6 +110,16 @@
       } catch (err) {
         errorEl.textContent = err.message;
       }
+    });
+
+    document.getElementById('csvFileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        document.getElementById('csvTextArea').value = event.target.result;
+      };
+      reader.readAsText(file);
     });
 
     document.getElementById('importForm').addEventListener('submit', async (e) => {
