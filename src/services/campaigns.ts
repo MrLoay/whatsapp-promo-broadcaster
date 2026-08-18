@@ -66,9 +66,15 @@ export function createQuickCampaign(db: Database.Database, owner: string, name: 
 }
 
 /** Creates a quick campaign from just a message and sends it immediately -- the one-click flow from the Home page. */
-export async function sendNow(db: Database.Database, owner: string, message: string): Promise<SendSummary> {
+export async function sendNow(
+  db: Database.Database,
+  owner: string,
+  message: string,
+  delayMode?: string,
+  customDelay?: number
+): Promise<SendSummary> {
   const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, message);
-  return sendCampaign(db, owner, campaign.id);
+  return sendCampaign(db, owner, campaign.id, delayMode, customDelay);
 }
 
 export function getCampaignById(db: Database.Database, owner: string, id: number): Campaign | undefined {
@@ -151,7 +157,13 @@ function sleep(ms: number): Promise<void> {
  * (idempotent via the campaign_recipients UNIQUE(campaign_id, contact_id)
  * constraint).
  */
-export async function sendCampaign(db: Database.Database, owner: string, campaignId: number): Promise<SendSummary> {
+export async function sendCampaign(
+  db: Database.Database,
+  owner: string,
+  campaignId: number,
+  delayMode: string = 'auto',
+  customDelaySec: number = 120
+): Promise<SendSummary> {
   const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
   const template = getTemplateById(db, owner, campaign.template_id) as MessageTemplate;
@@ -174,7 +186,7 @@ export async function sendCampaign(db: Database.Database, owner: string, campaig
 
   const summary: SendSummary = { campaignId, totalTargeted: candidates.length, sent: 0, failed: 0, throttledOut: 0 };
   let recentlyMessaged = countRecentlyMessaged(db, owner);
-  const intervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
+  const defaultIntervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
 
   const upsertRecipient = db.prepare(
     `INSERT INTO campaign_recipients (campaign_id, contact_id, status, wamid, error, sent_at)
@@ -183,11 +195,28 @@ export async function sendCampaign(db: Database.Database, owner: string, campaig
        status = excluded.status, wamid = excluded.wamid, error = excluded.error, sent_at = excluded.sent_at`
   );
 
+  let isFirst = true;
   for (const contact of candidates) {
     if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
       summary.throttledOut++;
       continue;
     }
+
+    // Determine delay BEFORE sending next message (except first message)
+    if (!isFirst) {
+      let sleepTimeMs = defaultIntervalMs;
+      if (delayMode === 'old_acc') {
+        // 2 to 5 minutes randomized (120,000ms to 300,000ms)
+        sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
+      } else if (delayMode === 'moderate') {
+        // 10 to 30 seconds randomized (10,000ms to 30,000ms)
+        sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
+      } else if (delayMode === 'custom') {
+        sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+      }
+      await sleep(sleepTimeMs);
+    }
+    isFirst = false;
 
     try {
       const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
@@ -199,8 +228,6 @@ export async function sendCampaign(db: Database.Database, owner: string, campaig
       upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
       summary.failed++;
     }
-
-    await sleep(intervalMs);
   }
 
   const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';

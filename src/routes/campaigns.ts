@@ -59,12 +59,12 @@ campaignsRouter.post('/campaigns/quick', (req, res) => {
 // One-click flow from the Home page: type a message, send to everyone
 // opted-in right now, no separate draft/review step.
 campaignsRouter.post('/campaigns/send-now', async (req, res) => {
-  const { message } = req.body ?? {};
+  const { message, delayMode, customDelay } = req.body ?? {};
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
   }
   try {
-    const summary = await sendNow(getDb(), req.session.username!, message);
+    const summary = await sendNow(getDb(), req.session.username!, message, delayMode, customDelay);
     res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });

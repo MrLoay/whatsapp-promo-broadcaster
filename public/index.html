@@ -25,6 +25,21 @@
           </select>
         </div>
 
+        <div style="margin-bottom: 16px;">
+          <label for="delaySelect" style="font-weight: 600; display: block; margin-bottom: 4px;">Sending Speed / Delay Mode:</label>
+          <select id="delaySelect" name="delayMode" style="width: 100%; max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+            <option value="auto">Automatic (Fast - System Managed)</option>
+            <option value="old_acc">Old Account Mode (2 to 5 min delay per msg)</option>
+            <option value="moderate">Moderate Safe Mode (10 to 30 sec delay per msg)</option>
+            <option value="custom">Custom Fixed Delay (seconds)</option>
+          </select>
+        </div>
+
+        <div id="customDelayContainer" style="display: none; margin-bottom: 16px;">
+          <label for="customDelayInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Custom Delay (seconds):</label>
+          <input type="number" id="customDelayInput" name="customDelay" min="1" max="600" value="120" style="width: 100%; max-width: 200px; padding: 8px;" />
+        </div>
+
         <textarea name="message" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!"></textarea><br /><br />
         <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
       </form>
@@ -89,6 +104,11 @@
 
     document.getElementById('accountSelect').addEventListener('change', updateMetricsDisplay);
 
+    document.getElementById('delaySelect').addEventListener('change', (e) => {
+      const customContainer = document.getElementById('customDelayContainer');
+      customContainer.style.display = e.target.value === 'custom' ? 'block' : 'none';
+    });
+
     document.getElementById('sendNowForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
@@ -100,8 +120,10 @@
       const optedIn = globalContacts.filter((c) => c.opt_in_status === 'opted_in').length;
       const selectedAccount = document.getElementById('accountSelect').value;
       const accountLabel = selectedAccount === 'all' ? 'All Active Accounts' : selectedAccount;
+      const delayMode = form.delayMode.value;
+      const customDelay = Number(form.customDelay.value || 120);
 
-      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel})`)) return;
+      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel}, Delay: ${delayMode})`)) return;
 
       const btn = form.querySelector('button');
       const originalLabel = btn.textContent;
@@ -110,7 +132,12 @@
       try {
         const summary = await api('/campaigns/send-now', {
           method: 'POST',
-          body: JSON.stringify({ message: form.message.value, accountId: selectedAccount })
+          body: JSON.stringify({
+            message: form.message.value,
+            accountId: selectedAccount,
+            delayMode,
+            customDelay,
+          })
         });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
         form.reset();
