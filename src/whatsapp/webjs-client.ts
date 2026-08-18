@@ -173,21 +173,23 @@ export async function disconnect(owner: string): Promise<void> {
   s.lastError = null;
 
   if (c) {
+    const withTimeout = (promise: Promise<any>, ms: number) =>
+      Promise.race([promise, new Promise((res) => setTimeout(res, ms))]);
+
     try {
-      await c.logout();
+      await withTimeout(c.logout(), 2000);
     } catch {
-      // Best-effort -- state is already reset above regardless of whether the
-      // in-progress session could be gracefully logged out.
+      // Best-effort -- state is already reset above
     }
     try {
       if (c.pupBrowser) {
-        await c.pupBrowser.close();
+        await withTimeout(c.pupBrowser.close(), 2000);
       }
     } catch {
       /* process may already be closed */
     }
     try {
-      await c.destroy();
+      await withTimeout(c.destroy(), 2000);
     } catch {
       /* already torn down */
     }
