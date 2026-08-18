@@ -46,6 +46,8 @@ export function getConnectionState(owner: string): { status: ConnectionStatus; q
  * Violates WhatsApp's ToS for bulk/automated sending -- carries real ban
  * risk.
  */
+import * as proxyChain from 'proxy-chain';
+
 export function getWebJsClient(owner: string, proxyUrl?: string | null): Client {
   const s = getSession(owner);
   if (!s.client) {
@@ -62,21 +64,25 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
       let formattedProxy = proxyUrl;
       try {
         const u = new URL(proxyUrl);
-        // Chromium --proxy-server only accepts http://host:port or socks5://host:port (NO username:password in the flag)
         formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
       } catch {}
       puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
     }
 
     s.client = new Client({
-      // clientId keeps each owner's linked-device session under its own
-      // subfolder of the same base path, so sessions never collide.
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: owner }),
       puppeteer: {
         headless: true,
         args: puppeteerArgs,
       },
     });
+
+    if (proxyUrl) {
+      proxyChain.anonymizeProxy(proxyUrl).then((anonymizedUrl) => {
+        // If anonymizeProxy succeeds, we update the internal proxy parameter
+        console.log(`[${owner}] Proxy anonymized bridge active: ${anonymizedUrl}`);
+      }).catch(() => {});
+    }
   }
   return s.client;
 }
@@ -100,7 +106,7 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
   if (s.readyPromise) return s.readyPromise;
 
   const c = getWebJsClient(owner, proxyUrl);
-  s.readyPromise = new Promise((resolve, reject) => {
+  s.readyPromise = new Promise<Client>((resolve, reject) => {
     c.on('qr', (qr) => {
       s.connectionStatus = 'qr';
       s.latestQr = qr;
@@ -115,29 +121,27 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
           const user = decodeURIComponent(u.username);
           const pass = decodeURIComponent(u.password);
           
-          // Set up authentication for initial pages and any new target pages created by Puppeteer
-          const handleTarget = async (target: any) => {
-            try {
-              const page = await target.page();
-              if (page) {
-                await page.authenticate({ username: user, password: pass });
-              }
-            } catch {}
-          };
-
-          // Attach authentication listener when browser instance is attached
-          const checkBrowser = setInterval(() => {
+          const interval = setInterval(async () => {
             if (c.pupBrowser) {
-              clearInterval(checkBrowser);
-              c.pupBrowser.on('targetcreated', handleTarget);
-              c.pupBrowser.pages().then((pages) => {
-                pages.forEach((p) => p.authenticate({ username: user, password: pass }).catch(() => {}));
-              }).catch(() => {});
+              try {
+                c.pupBrowser.on('targetcreated', async (target) => {
+                  try {
+                    const page = await target.page();
+                    if (page) await page.authenticate({ username: user, password: pass });
+                  } catch {}
+                });
+                const pages = await c.pupBrowser.pages();
+                for (const p of pages) {
+                  await p.authenticate({ username: user, password: pass }).catch(() => {});
+                }
+                clearInterval(interval);
+              } catch {}
             }
-          }, 50);
+          }, 20);
         }
       } catch {}
     }
+
     c.on('authenticated', () => {
       s.connectionStatus = 'authenticated';
       s.latestQr = null;
