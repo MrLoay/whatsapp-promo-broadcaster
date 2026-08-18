@@ -96,8 +96,12 @@ function resetForRetry(owner: string): void {
   // the same stale rejected promise every time. Clearing both lets the next
   // ensureReady() call build a fresh Client and actually try again.
   const s = getSession(owner);
+  const oldClient = s.client;
   s.client = null;
   s.readyPromise = null;
+  if (oldClient) {
+    oldClient.destroy().catch(() => {});
+  }
 }
 
 export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
