@@ -14,8 +14,8 @@ import { config } from '../config';
  * Safe to call more than once for the same owner -- skips re-attaching if
  * this client instance already has listeners.
  */
-export function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): void {
-  const client = getWebJsClient(owner, proxyUrl);
+export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {
+  const client = await getWebJsClient(owner, proxyUrl);
   if (client.listenerCount('message') > 0) return; // already wired up for this client instance
 
   updateAccountStatus(db, owner, 'CONNECTING');

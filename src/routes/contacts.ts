@@ -51,7 +51,7 @@ contactsRouter.post('/contacts/sync', async (req, res) => {
     if (state.status !== 'ready') {
       return res.status(400).json({ error: 'WhatsApp is not connected. Please connect WhatsApp on the WhatsApp page first.' });
     }
-    const client = getWebJsClient(owner);
+    const client = await getWebJsClient(owner);
     const waContacts = await client.getContacts();
     let synced = 0;
     for (const c of waContacts) {

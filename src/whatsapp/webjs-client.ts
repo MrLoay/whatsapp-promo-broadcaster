@@ -48,7 +48,7 @@ export function getConnectionState(owner: string): { status: ConnectionStatus; q
  */
 import * as proxyChain from 'proxy-chain';
 
-export function getWebJsClient(owner: string, proxyUrl?: string | null): Client {
+export async function getWebJsClient(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   if (!s.client) {
     let activeCount = 0;
@@ -60,13 +60,22 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
     }
 
     const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    let localBridgeUrl: string | null = null;
+
     if (proxyUrl) {
-      let formattedProxy = proxyUrl;
       try {
-        const u = new URL(proxyUrl);
-        formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
-      } catch {}
-      puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
+        localBridgeUrl = await proxyChain.anonymizeProxy(proxyUrl);
+        console.log(`[${owner}] Proxy local anonymized bridge established: ${localBridgeUrl}`);
+        puppeteerArgs.push(`--proxy-server=${localBridgeUrl}`);
+      } catch (err) {
+        console.error(`[${owner}] Failed to create proxy bridge, falling back:`, err);
+        let formattedProxy = proxyUrl;
+        try {
+          const u = new URL(proxyUrl);
+          formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
+        } catch {}
+        puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
+      }
     }
 
     s.client = new Client({
@@ -77,32 +86,12 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
       },
     });
 
-    if (proxyUrl) {
-      try {
-        const u = new URL(proxyUrl);
-        if (u.username || u.password) {
-          const user = decodeURIComponent(u.username);
-          const pass = decodeURIComponent(u.password);
-          const interval = setInterval(async () => {
-            if (s.client?.pupBrowser) {
-              try {
-                s.client.pupBrowser.on('targetcreated', async (target) => {
-                  try {
-                    const page = await target.page();
-                    if (page) await page.authenticate({ username: user, password: pass });
-                  } catch {}
-                });
-                const pages = await s.client.pupBrowser.pages();
-                for (const p of pages) {
-                  await p.authenticate({ username: user, password: pass }).catch(() => {});
-                }
-                clearInterval(interval);
-              } catch {}
-            }
-          }, 20);
-        }
-      } catch {}
-    }
+    // Cleanup local bridge when client is disconnected/destroyed
+    s.client.on('disconnected', () => {
+      if (localBridgeUrl) {
+        proxyChain.closeAnonymizedProxy(localBridgeUrl, true).catch(() => {});
+      }
+    });
   }
   return s.client;
 }
@@ -121,12 +110,13 @@ function resetForRetry(owner: string): void {
   }
 }
 
-export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
+export async function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   if (s.readyPromise) return s.readyPromise;
 
-  const c = getWebJsClient(owner, proxyUrl);
-  s.readyPromise = new Promise<Client>((resolve, reject) => {
+  s.readyPromise = new Promise<Client>(async (resolve, reject) => {
+    try {
+      const c = await getWebJsClient(owner, proxyUrl);
       c.on('qr', (qr) => {
         s.connectionStatus = 'qr';
         s.latestQr = qr;
@@ -161,7 +151,10 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
         resetForRetry(owner);
         reject(err);
       });
-    });
+    } catch (err) {
+      reject(err);
+    }
+  });
 
   return s.readyPromise;
 }
