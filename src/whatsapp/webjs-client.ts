@@ -59,17 +59,7 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
 
     const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
     if (proxyUrl) {
-      // Chromium --proxy-server expects scheme without credentials, e.g. socks5://136.0.244.101:50101
-      // For authenticated proxies, we format or support proxy-chain if needed.
-      // Standard chromium format: --proxy-server=socks5://136.0.244.101:50101
-      // And auth via puppeteer page/browser auth if applicable or formatted scheme.
-      let formattedProxy = proxyUrl;
-      try {
-        const u = new URL(proxyUrl);
-        // Chromium supports socks5://host:port or http://host:port in --proxy-server
-        formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
-      } catch {}
-      puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
+      puppeteerArgs.push(`--proxy-server=${proxyUrl}`);
     }
 
     s.client = new Client({
@@ -78,11 +68,6 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: owner }),
       puppeteer: {
         headless: true,
-        // Chrome refuses to start as root without this (common on VPS/container
-        // deployments running as root): "Running as root without --no-sandbox
-        // is not supported." This app only ever navigates to WhatsApp Web's own
-        // origin, not arbitrary untrusted sites, so the reduced sandboxing is
-        // an acceptable tradeoff here.
         args: puppeteerArgs,
       },
     });
@@ -123,16 +108,27 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
         if (u.username || u.password) {
           const user = decodeURIComponent(u.username);
           const pass = decodeURIComponent(u.password);
-          c.on('ready', async () => {
-            /* ready */
-          });
-          // Authenticate proxy on puppeteer page load
-          c.pupBrowser?.on('targetcreated', async (target) => {
-            const page = await target.page();
-            if (page) {
-              await page.authenticate({ username: user, password: pass });
+          
+          // Set up authentication for initial pages and any new target pages created by Puppeteer
+          const handleTarget = async (target: any) => {
+            try {
+              const page = await target.page();
+              if (page) {
+                await page.authenticate({ username: user, password: pass });
+              }
+            } catch {}
+          };
+
+          // Attach authentication listener when browser instance is attached
+          const checkBrowser = setInterval(() => {
+            if (c.pupBrowser) {
+              clearInterval(checkBrowser);
+              c.pupBrowser.on('targetcreated', handleTarget);
+              c.pupBrowser.pages().then((pages) => {
+                pages.forEach((p) => p.authenticate({ username: user, password: pass }).catch(() => {}));
+              }).catch(() => {});
             }
-          });
+          }, 50);
         }
       } catch {}
     }
