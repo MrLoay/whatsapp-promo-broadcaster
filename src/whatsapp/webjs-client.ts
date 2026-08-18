@@ -59,7 +59,13 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
 
     const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
     if (proxyUrl) {
-      puppeteerArgs.push(`--proxy-server=${proxyUrl}`);
+      let formattedProxy = proxyUrl;
+      try {
+        const u = new URL(proxyUrl);
+        // Chromium --proxy-server only accepts http://host:port or socks5://host:port (NO username:password in the flag)
+        formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
+      } catch {}
+      puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
     }
 
     s.client = new Client({
