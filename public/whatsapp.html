@@ -244,6 +244,18 @@
       if (health.dryRun) {
         document.getElementById('needsLiveMode').style.display = 'block';
       }
+      try {
+        const initialAccounts = await api('/accounts');
+        renderAccounts(initialAccounts.map(acc => ({
+          id: acc.id,
+          account_name: acc.account_name,
+          proxy_url: acc.proxy_url,
+          dbStatus: acc.status,
+          liveStatus: acc.status,
+          qr: null,
+          error: null
+        })));
+      } catch (e) {}
       initSSE();
     })();
   </script>
