@@ -39,21 +39,26 @@ async function renderNav(activePage) {
     ([code, label]) => `<option value="${code}" ${code === getLang() ? 'selected' : ''}>${label}</option>`
   ).join('');
 
-  const currentTheme = localStorage.getItem('theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', currentTheme);
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme) {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
 
   nav.innerHTML =
     pages.map(([href, key]) => `<a href="${href}" class="${href === activePage ? 'active' : ''}" data-i18n="${key}"></a>`).join('') +
     `<span class="spacer"></span>` +
-    `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;">${currentTheme === 'dark' ? '☀️ Light' : '🌙 Dark'}</button>` +
+    `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;">🌓 Theme</button>` +
     `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
     `<span class="user">${escapeHtml(me.username)}</span><button class="logout" id="logoutBtn" data-i18n="nav.logout"></button>`;
 
   document.getElementById('themeToggleBtn').onclick = () => {
-    const nextTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    const isCurrentlyDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+      (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const nextTheme = isCurrentlyDark ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', nextTheme);
     localStorage.setItem('theme', nextTheme);
-    document.getElementById('themeToggleBtn').textContent = nextTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
   };
 
   document.getElementById('logoutBtn').onclick = async () => {
