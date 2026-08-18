@@ -121,6 +121,8 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
       try {
         const u = new URL(proxyUrl);
         if (u.username || u.password) {
+          const user = decodeURIComponent(u.username);
+          const pass = decodeURIComponent(u.password);
           c.on('ready', async () => {
             /* ready */
           });
@@ -128,7 +130,7 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
           c.pupBrowser?.on('targetcreated', async (target) => {
             const page = await target.page();
             if (page) {
-              await page.authenticate({ username: u.username, password: u.password });
+              await page.authenticate({ username: user, password: pass });
             }
           });
         }
