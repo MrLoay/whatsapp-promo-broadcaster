@@ -42,6 +42,21 @@ notaphone,Eve`;
     expect(getContactByPhone(db, OWNER, '+15553334444')?.name).toBe('David');
   });
 
+  it('imports space/tab separated name-first numbers without + prefix', () => {
+    const txtContent = `Siti Nurinie binti ithnin       601128673204
+Mohammad firdaus haqimy bin abdullah   60137427406`;
+
+    const result = importContactsFromCsv(db, OWNER, txtContent);
+    expect(result.inserted).toBe(2);
+    expect(result.skipped).toHaveLength(0);
+
+    const c1 = getContactByPhone(db, OWNER, '+601128673204');
+    expect(c1?.name).toBe('Siti Nurinie binti ithnin');
+
+    const c2 = getContactByPhone(db, OWNER, '+60137427406');
+    expect(c2?.name).toBe('Mohammad firdaus haqimy bin abdullah');
+  });
+
   it('every imported contact appears in the campaign-eligible list', () => {
     importContactsFromCsv(db, OWNER, `phone,name\n+15551234567,Alice\n+15559876543,Bob`);
     const eligible = listOptedInContacts(db, OWNER);

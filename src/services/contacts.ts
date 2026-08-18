@@ -67,47 +67,66 @@ export function importContactsFromCsv(
   csvContent: string,
   source = 'csv_import'
 ): ImportResult {
-  const cleanContent = csvContent.trim();
+  const cleanContent = (csvContent ?? '').trim();
   if (!cleanContent) {
     return { inserted: 0, updated: 0, skipped: [] };
   }
 
-  let rows: Record<string, string>[] = [];
-  try {
-    rows = parse(cleanContent, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
-    // Check if header parsed correctly (i.e. 'phone' column exists)
-    if (rows.length > 0 && !('phone' in rows[0])) {
-      // Fallback: parse without headers
-      const rawRows = parse(cleanContent, { columns: false, skip_empty_lines: true, trim: true }) as string[][];
-      rows = rawRows.map((r) => ({ phone: r[0] ?? '', name: r[1] ?? '' }));
-    }
-  } catch {
-    // Fallback line-by-line parsing for informal .txt files
-    const lines = cleanContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
-    rows = lines.map((line) => {
-      const parts = line.split(',').map((p) => p.trim());
-      return { phone: parts[0] ?? '', name: parts[1] ?? '' };
-    });
-  }
-
   const result: ImportResult = { inserted: 0, updated: 0, skipped: [] };
 
-  const tx = db.transaction((records: Record<string, string>[]) => {
-    for (const row of records) {
-      const phone = (row.phone ?? '').trim();
-      // Skip header row if fallback added it
-      if (phone.toLowerCase() === 'phone') continue;
+  // Parse lines robustly regardless of delimiter (tabs, spaces, commas) or column order
+  const lines = cleanContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
-      if (!E164_RE.test(phone)) {
-        result.skipped.push({ phone: phone || '(empty)', reason: 'invalid phone format, expected E.164 e.g. +15551234567' });
+  const tx = db.transaction((lineArray: string[]) => {
+    for (const rawLine of lineArray) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || trimmed.toLowerCase().startsWith('phone')) continue;
+
+      // Extract parts by comma, tab, or multi-space
+      const tokens = trimmed.split(/[\t,]| {2,}/).map((t) => t.trim()).filter(Boolean);
+
+      let rawPhone = '';
+      let rawName = '';
+
+      // Find token that looks like a phone number (contains digits and length 7-15)
+      const phoneIndex = tokens.findIndex((t) => {
+        const cleaned = t.replace(/[^\d+]/g, '');
+        return cleaned.length >= 7 && cleaned.length <= 15;
+      });
+
+      if (phoneIndex !== -1) {
+        rawPhone = tokens[phoneIndex];
+        const nameTokens = tokens.filter((_, i) => i !== phoneIndex);
+        rawName = nameTokens.join(' ');
+      } else {
+        // Fallback: try regex extract digits from line
+        const digitMatch = trimmed.match(/\+?\d[\d\s-]{6,14}\d/);
+        if (digitMatch) {
+          rawPhone = digitMatch[0];
+          rawName = trimmed.replace(digitMatch[0], '').trim();
+        } else {
+          rawPhone = tokens[0] ?? '';
+          rawName = tokens.slice(1).join(' ');
+        }
+      }
+
+      // Clean phone number: remove spaces/dashes, add leading '+' if missing
+      let cleanPhone = rawPhone.replace(/[^\d+]/g, '');
+      if (cleanPhone && !cleanPhone.startsWith('+')) {
+        cleanPhone = '+' + cleanPhone;
+      }
+
+      if (!E164_RE.test(cleanPhone)) {
+        result.skipped.push({ phone: rawPhone || rawLine, reason: 'invalid phone format, expected E.164 e.g. +601128673204' });
         continue;
       }
-      const outcome = upsertContact(db, owner, phone, row.name, source);
+
+      const outcome = upsertContact(db, owner, cleanPhone, rawName || undefined, source);
       result[outcome === 'inserted' ? 'inserted' : 'updated']++;
     }
   });
 
-  tx(rows);
+  tx(lines);
   return result;
 }
 
