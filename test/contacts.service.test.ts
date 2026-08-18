@@ -32,6 +32,16 @@ notaphone,Eve`;
     expect(bob?.opt_in_status).toBe('opted_in');
   });
 
+  it('imports headerless CSV and plain .txt files correctly', () => {
+    const txtContent = `+15551112222, Charlie
++15553334444, David`;
+
+    const result = importContactsFromCsv(db, OWNER, txtContent);
+    expect(result.inserted).toBe(2);
+    expect(getContactByPhone(db, OWNER, '+15551112222')?.name).toBe('Charlie');
+    expect(getContactByPhone(db, OWNER, '+15553334444')?.name).toBe('David');
+  });
+
   it('every imported contact appears in the campaign-eligible list', () => {
     importContactsFromCsv(db, OWNER, `phone,name\n+15551234567,Alice\n+15559876543,Bob`);
     const eligible = listOptedInContacts(db, OWNER);

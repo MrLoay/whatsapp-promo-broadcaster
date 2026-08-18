@@ -60,19 +60,44 @@ export function upsertContact(
   return 'inserted';
 }
 
-/** CSV must have columns: phone, name (optional). Every valid row is added as messageable. */
+/** CSV or plain text lines must have: phone, name (optional). Handles headerless and header-based files. */
 export function importContactsFromCsv(
   db: Database.Database,
   owner: string,
   csvContent: string,
   source = 'csv_import'
 ): ImportResult {
-  const rows = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
+  const cleanContent = csvContent.trim();
+  if (!cleanContent) {
+    return { inserted: 0, updated: 0, skipped: [] };
+  }
+
+  let rows: Record<string, string>[] = [];
+  try {
+    rows = parse(cleanContent, { columns: true, skip_empty_lines: true, trim: true }) as Record<string, string>[];
+    // Check if header parsed correctly (i.e. 'phone' column exists)
+    if (rows.length > 0 && !('phone' in rows[0])) {
+      // Fallback: parse without headers
+      const rawRows = parse(cleanContent, { columns: false, skip_empty_lines: true, trim: true }) as string[][];
+      rows = rawRows.map((r) => ({ phone: r[0] ?? '', name: r[1] ?? '' }));
+    }
+  } catch {
+    // Fallback line-by-line parsing for informal .txt files
+    const lines = cleanContent.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    rows = lines.map((line) => {
+      const parts = line.split(',').map((p) => p.trim());
+      return { phone: parts[0] ?? '', name: parts[1] ?? '' };
+    });
+  }
+
   const result: ImportResult = { inserted: 0, updated: 0, skipped: [] };
 
   const tx = db.transaction((records: Record<string, string>[]) => {
     for (const row of records) {
       const phone = (row.phone ?? '').trim();
+      // Skip header row if fallback added it
+      if (phone.toLowerCase() === 'phone') continue;
+
       if (!E164_RE.test(phone)) {
         result.skipped.push({ phone: phone || '(empty)', reason: 'invalid phone format, expected E.164 e.g. +15551234567' });
         continue;
