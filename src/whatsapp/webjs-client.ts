@@ -51,6 +51,14 @@ import * as proxyChain from 'proxy-chain';
 export function getWebJsClient(owner: string, proxyUrl?: string | null): Client {
   const s = getSession(owner);
   if (!s.client) {
+    throw new Error(`Client for ${owner} has not been created yet.`);
+  }
+  return s.client;
+}
+
+export async function getWebJsClientAsync(owner: string, proxyUrl?: string | null): Promise<{ client: Client; cleanUp?: () => Promise<void> }> {
+  const s = getSession(owner);
+  if (!s.client) {
     let activeCount = 0;
     for (const session of sessions.values()) {
       if (session.client) activeCount++;
@@ -60,13 +68,22 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
     }
 
     const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    let localBridgeUrl: string | null = null;
+
     if (proxyUrl) {
-      let formattedProxy = proxyUrl;
       try {
-        const u = new URL(proxyUrl);
-        formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
-      } catch {}
-      puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
+        localBridgeUrl = await proxyChain.anonymizeProxy(proxyUrl);
+        console.log(`[${owner}] Proxy local anonymized bridge established: ${localBridgeUrl}`);
+        puppeteerArgs.push(`--proxy-server=${localBridgeUrl}`);
+      } catch (err) {
+        console.error(`[${owner}] Failed to create proxy bridge, falling back:`, err);
+        let formattedProxy = proxyUrl;
+        try {
+          const u = new URL(proxyUrl);
+          formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
+        } catch {}
+        puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
+      }
     }
 
     s.client = new Client({
@@ -77,14 +94,16 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
       },
     });
 
-    if (proxyUrl) {
-      proxyChain.anonymizeProxy(proxyUrl).then((anonymizedUrl) => {
-        // If anonymizeProxy succeeds, we update the internal proxy parameter
-        console.log(`[${owner}] Proxy anonymized bridge active: ${anonymizedUrl}`);
-      }).catch(() => {});
-    }
+    return {
+      client: s.client,
+      cleanUp: async () => {
+        if (localBridgeUrl) {
+          await proxyChain.closeAnonymizedProxy(localBridgeUrl, true).catch(() => {});
+        }
+      }
+    };
   }
-  return s.client;
+  return { client: s.client };
 }
 
 function resetForRetry(owner: string): void {
@@ -101,75 +120,49 @@ function resetForRetry(owner: string): void {
   }
 }
 
-export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
+export async function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   if (s.readyPromise) return s.readyPromise;
 
-  const c = getWebJsClient(owner, proxyUrl);
-  s.readyPromise = new Promise<Client>((resolve, reject) => {
-    c.on('qr', (qr) => {
-      s.connectionStatus = 'qr';
-      s.latestQr = qr;
-      console.log(`\n[${owner}] Scan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n`);
-      qrcodeTerminal.generate(qr, { small: true });
-    });
+  s.readyPromise = (async () => {
+    const { client: c } = await getWebJsClientAsync(owner, proxyUrl);
+    return new Promise<Client>((resolve, reject) => {
+      c.on('qr', (qr) => {
+        s.connectionStatus = 'qr';
+        s.latestQr = qr;
+        console.log(`\n[${owner}] Scan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n`);
+        qrcodeTerminal.generate(qr, { small: true });
+      });
 
-    if (proxyUrl) {
-      try {
-        const u = new URL(proxyUrl);
-        if (u.username || u.password) {
-          const user = decodeURIComponent(u.username);
-          const pass = decodeURIComponent(u.password);
-          
-          const interval = setInterval(async () => {
-            if (c.pupBrowser) {
-              try {
-                c.pupBrowser.on('targetcreated', async (target) => {
-                  try {
-                    const page = await target.page();
-                    if (page) await page.authenticate({ username: user, password: pass });
-                  } catch {}
-                });
-                const pages = await c.pupBrowser.pages();
-                for (const p of pages) {
-                  await p.authenticate({ username: user, password: pass }).catch(() => {});
-                }
-                clearInterval(interval);
-              } catch {}
-            }
-          }, 20);
-        }
-      } catch {}
-    }
-
-    c.on('authenticated', () => {
-      s.connectionStatus = 'authenticated';
-      s.latestQr = null;
-      console.log(`[${owner}] whatsapp-web.js: authenticated, session saved for next time.`);
+      c.on('authenticated', () => {
+        s.connectionStatus = 'authenticated';
+        s.latestQr = null;
+        console.log(`[${owner}] whatsapp-web.js: authenticated, session saved for next time.`);
+      });
+      c.on('auth_failure', (msg) => {
+        s.connectionStatus = 'error';
+        s.lastError = msg;
+        resetForRetry(owner);
+        reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
+      });
+      c.on('ready', () => {
+        s.connectionStatus = 'ready';
+        s.latestQr = null;
+        console.log(`[${owner}] whatsapp-web.js: client ready.`);
+        resolve(c);
+      });
+      c.on('disconnected', () => {
+        s.connectionStatus = 'idle';
+        resetForRetry(owner);
+      });
+      c.initialize().catch((err) => {
+        s.connectionStatus = 'error';
+        s.lastError = err.message;
+        resetForRetry(owner);
+        reject(err);
+      });
     });
-    c.on('auth_failure', (msg) => {
-      s.connectionStatus = 'error';
-      s.lastError = msg;
-      resetForRetry(owner);
-      reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
-    });
-    c.on('ready', () => {
-      s.connectionStatus = 'ready';
-      s.latestQr = null;
-      console.log(`[${owner}] whatsapp-web.js: client ready.`);
-      resolve(c);
-    });
-    c.on('disconnected', () => {
-      s.connectionStatus = 'idle';
-      resetForRetry(owner);
-    });
-    c.initialize().catch((err) => {
-      s.connectionStatus = 'error';
-      s.lastError = err.message;
-      resetForRetry(owner);
-      reject(err);
-    });
-  });
+  })();
 
   return s.readyPromise;
 }
