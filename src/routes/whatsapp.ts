@@ -95,5 +95,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
 whatsappRouter.post('/whatsapp/disconnect', async (req, res) => {
   const accountId = req.body?.id || req.session.username!;
   await disconnect(accountId);
+  const db = getDb();
+  upsertAccount(db, accountId, { status: 'DISCONNECTED' });
   res.json({ disconnected: true });
 });
