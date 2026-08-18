@@ -10,12 +10,10 @@ interface Session {
   connectionStatus: ConnectionStatus;
   latestQr: string | null;
   lastError: string | null;
+  cleanup?: () => void;
 }
 
-// Each dashboard account (owner) gets its own WhatsApp session -- separate
-// linked device, separate LocalAuth data, separate connection state. This is
-// what lets two unrelated boutiques share one login page/URL while each
-// sending from its own WhatsApp number.
+// Each dashboard account (owner) gets its own WhatsApp session
 const sessions = new Map<string, Session>();
 
 function getSession(owner: string): Session {
@@ -88,11 +86,15 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       },
     });
 
-    // Cleanup local bridge when client is disconnected/destroyed
-    s.client.on('disconnected', () => {
+    // Setup cleanup function
+    s.cleanup = () => {
       if (localBridgeUrl) {
         proxyChain.closeAnonymizedProxy(localBridgeUrl, true).catch(() => {});
       }
+    };
+
+    s.client.on('disconnected', () => {
+      if (s.cleanup) s.cleanup();
     });
   }
   return s.client;
@@ -105,6 +107,10 @@ function resetForRetry(owner: string): void {
   // ensureReady() call build a fresh Client and actually try again.
   const s = getSession(owner);
   const oldClient = s.client;
+  if (s.cleanup) {
+    s.cleanup();
+    s.cleanup = undefined;
+  }
   s.client = null;
   s.readyPromise = null;
   if (oldClient) {
@@ -170,7 +176,11 @@ export async function disconnect(owner: string): Promise<void> {
   s.connectionStatus = 'idle';
   s.latestQr = null;
   s.lastError = null;
-
+  if (s.cleanup) {
+    s.cleanup();
+    s.cleanup = undefined;
+  }
+  
   if (c) {
     const withTimeout = (promise: Promise<any>, ms: number) =>
       Promise.race([promise, new Promise((res) => setTimeout(res, ms))]);
