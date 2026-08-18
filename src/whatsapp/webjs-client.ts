@@ -83,6 +83,8 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       puppeteer: {
         headless: true,
         args: puppeteerArgs,
+        timeout: 60000,
+        protocolTimeout: 600000
       },
     });
 
