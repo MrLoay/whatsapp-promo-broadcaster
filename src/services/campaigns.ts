@@ -73,7 +73,13 @@ export async function sendNow(
   delayMode?: string,
   customDelay?: number
 ): Promise<SendSummary> {
-  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, message);
+  // Automatically prepend greeting and name if the user didn't include it
+  let finalMessage = message;
+  if (!finalMessage.includes('{{name}}') && !finalMessage.includes('{{1}}')) {
+    finalMessage = `{Hello|Hi|Hey|Greetings} {{name}},\n\n${finalMessage}`;
+  }
+
+  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage);
   return sendCampaign(db, owner, campaign.id, delayMode, customDelay);
 }
 
