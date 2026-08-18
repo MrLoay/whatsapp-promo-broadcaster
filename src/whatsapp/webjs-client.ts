@@ -59,7 +59,17 @@ export function getWebJsClient(owner: string, proxyUrl?: string | null): Client 
 
     const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
     if (proxyUrl) {
-      puppeteerArgs.push(`--proxy-server=${proxyUrl}`);
+      // Chromium --proxy-server expects scheme without credentials, e.g. socks5://136.0.244.101:50101
+      // For authenticated proxies, we format or support proxy-chain if needed.
+      // Standard chromium format: --proxy-server=socks5://136.0.244.101:50101
+      // And auth via puppeteer page/browser auth if applicable or formatted scheme.
+      let formattedProxy = proxyUrl;
+      try {
+        const u = new URL(proxyUrl);
+        // Chromium supports socks5://host:port or http://host:port in --proxy-server
+        formattedProxy = `${u.protocol}//${u.hostname}:${u.port}`;
+      } catch {}
+      puppeteerArgs.push(`--proxy-server=${formattedProxy}`);
     }
 
     s.client = new Client({
@@ -102,6 +112,24 @@ export function ensureReady(owner: string, proxyUrl?: string | null): Promise<Cl
       console.log(`\n[${owner}] Scan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n`);
       qrcodeTerminal.generate(qr, { small: true });
     });
+
+    if (proxyUrl) {
+      try {
+        const u = new URL(proxyUrl);
+        if (u.username || u.password) {
+          c.on('ready', async () => {
+            /* ready */
+          });
+          // Authenticate proxy on puppeteer page load
+          c.pupBrowser?.on('targetcreated', async (target) => {
+            const page = await target.page();
+            if (page) {
+              await page.authenticate({ username: u.username, password: u.password });
+            }
+          });
+        }
+      } catch {}
+    }
     c.on('authenticated', () => {
       s.connectionStatus = 'authenticated';
       s.latestQr = null;
