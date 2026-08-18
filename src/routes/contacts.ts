@@ -34,12 +34,36 @@ contactsRouter.delete('/contacts/:id', (req, res) => {
   res.json({ deleted: true });
 });
 
-// Body: raw CSV text, header row: phone,name
 contactsRouter.post('/contacts/import', (req, res) => {
   try {
     const result = importContactsFromCsv(getDb(), req.session.username!, req.body as string, 'api_import');
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+contactsRouter.post('/contacts/sync', async (req, res) => {
+  const owner = req.session.username!;
+  try {
+    const { getWebJsClient, getConnectionState } = await import('../whatsapp/webjs-client');
+    const state = getConnectionState(owner);
+    if (state.status !== 'ready') {
+      return res.status(400).json({ error: 'WhatsApp is not connected. Please connect WhatsApp on the WhatsApp page first.' });
+    }
+    const client = getWebJsClient(owner);
+    const waContacts = await client.getContacts();
+    let synced = 0;
+    for (const c of waContacts) {
+      if (c.isUser && c.number) {
+        const phone = '+' + c.number;
+        const name = c.name || c.pushname || undefined;
+        upsertContact(getDb(), owner, phone, name, 'whatsapp_sync');
+        synced++;
+      }
+    }
+    res.json({ synced });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });

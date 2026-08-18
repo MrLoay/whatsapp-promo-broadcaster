@@ -48,7 +48,11 @@
     </div>
 
     <div class="card">
-      <h2 data-i18n="contacts.table.heading">All contacts</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="margin: 0;" data-i18n="contacts.table.heading">All contacts</h2>
+        <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
+      </div>
+      <div id="syncStatus" class="muted" style="margin-bottom: 10px;"></div>
       <table>
         <thead>
           <tr>
@@ -141,6 +145,18 @@
         await loadContacts();
       } catch (err) {
         errorEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('syncWhatsappBtn').addEventListener('click', async () => {
+      const syncStatus = document.getElementById('syncStatus');
+      syncStatus.textContent = 'Syncing contacts from WhatsApp...';
+      try {
+        const res = await api('/contacts/sync', { method: 'POST' });
+        syncStatus.textContent = `Sync complete. Synced: ${res.synced}`;
+        await loadContacts();
+      } catch (err) {
+        syncStatus.textContent = 'Error: ' + err.message;
       }
     });
 
