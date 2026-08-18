@@ -5,7 +5,7 @@ import { requireAuth } from '../auth';
 import { getDb } from '../db';
 import { getConnectionState, disconnect } from '../whatsapp/webjs-client';
 import { startWebJsListeners } from '../whatsapp/webjs-listeners';
-import { getAccountById, upsertAccount, listAccounts } from '../services/accounts';
+import { getAccountById, upsertAccount, listAccounts, deleteAccount } from '../services/accounts';
 
 export const whatsappRouter = Router();
 whatsappRouter.use(requireAuth);
@@ -98,4 +98,13 @@ whatsappRouter.post('/whatsapp/disconnect', async (req, res) => {
   const db = getDb();
   upsertAccount(db, accountId, { status: 'DISCONNECTED' });
   res.json({ disconnected: true });
+});
+
+whatsappRouter.post('/whatsapp/delete', async (req, res) => {
+  const accountId = req.body?.id;
+  if (!accountId) return res.status(400).json({ error: 'Missing account id' });
+  await disconnect(accountId);
+  const db = getDb();
+  deleteAccount(db, accountId);
+  res.json({ deleted: true });
 });

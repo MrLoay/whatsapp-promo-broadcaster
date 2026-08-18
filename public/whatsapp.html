@@ -158,7 +158,8 @@
               ${acc.error ? `<div class="error" style="font-size:12px; margin-bottom:8px;">${escapeHtml(acc.error)}</div>` : ''}
               ${qrHtml}
             </div>
-            <div style="margin-top: 12px; text-align: right;">
+            <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
+              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}')">Delete</button>
               ${displayStatus !== 'DISCONNECTED' ? `
                 <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}')">Disconnect</button>
               ` : `
@@ -188,6 +189,19 @@
           method: 'POST',
           body: JSON.stringify({ id })
         });
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
+      }
+    }
+
+    async function deleteAccountCard(id) {
+      if (!confirm(`Are you sure you want to completely delete account "${id}"?`)) return;
+      try {
+        await api('/whatsapp/delete', {
+          method: 'POST',
+          body: JSON.stringify({ id })
+        });
+        window.location.reload();
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
       }
