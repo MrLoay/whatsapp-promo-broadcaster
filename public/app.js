@@ -1,8 +1,9 @@
 async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
+  const headers = { ...options.headers };
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  }
+  const res = await fetch(path, { ...options, headers });
   if (res.status === 401) {
     window.location.href = '/login.html';
     throw new Error('Not logged in');

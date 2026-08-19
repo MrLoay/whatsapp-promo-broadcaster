@@ -18,10 +18,10 @@ export async function sendCampaignMessage(
   template: MessageTemplate,
   variableValues: string[]
 ): Promise<DispatchResult> {
-  if (!template.body_text) {
-    throw new Error(`Template "${template.name}" has no bodyText set`);
+  if (!template.body_text && !template.media_path) {
+    throw new Error(`Template "${template.name}" has no bodyText and no media set`);
   }
-  const text = renderTemplateBody(template.body_text, variableValues);
-  const result = await sendTextMessage(owner, toPhoneE164, text);
+  const text = template.body_text ? renderTemplateBody(template.body_text, variableValues) : '';
+  const result = await sendTextMessage(owner, toPhoneE164, text, template.media_path, template.media_mime_type);
   return { id: result.id, dryRun: config.dryRun };
 }

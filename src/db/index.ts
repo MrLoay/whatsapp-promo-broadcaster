@@ -9,6 +9,8 @@ import { config } from '../config';
 // so upgrading an existing database is automatic instead of a manual step.
 const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: 'templates', column: 'personalize_name', ddl: 'ALTER TABLE templates ADD COLUMN personalize_name INTEGER NOT NULL DEFAULT 0' },
+  { table: 'templates', column: 'media_path', ddl: 'ALTER TABLE templates ADD COLUMN media_path TEXT' },
+  { table: 'templates', column: 'media_mime_type', ddl: 'ALTER TABLE templates ADD COLUMN media_mime_type TEXT' },
 ];
 
 function applyColumnMigrations(db: Database.Database): void {

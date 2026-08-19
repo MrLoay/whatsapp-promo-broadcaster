@@ -205,10 +205,19 @@ export async function disconnect(owner: string): Promise<void> {
   }
 }
 
-export async function sendTextMessage(owner: string, toPhoneE164: string, text: string): Promise<{ id: string }> {
+import fs from 'fs';
+import { MessageMedia } from 'whatsapp-web.js';
+
+export async function sendTextMessage(
+  owner: string, 
+  toPhoneE164: string, 
+  text: string, 
+  mediaPath?: string, 
+  mediaMimeType?: string
+): Promise<{ id: string }> {
   if (config.dryRun) {
     const fakeId = `dryrun-webjs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    console.log(`[DRY_RUN web_js][${owner}] Would send to ${toPhoneE164}:\n${text}`);
+    console.log(`[DRY_RUN web_js][${owner}] Would send to ${toPhoneE164}:\n${text}\nMedia: ${mediaPath ?? 'None'}`);
     return { id: fakeId };
   }
 
@@ -220,7 +229,23 @@ export async function sendTextMessage(owner: string, toPhoneE164: string, text: 
     throw new Error(`${toPhoneE164} is not a registered WhatsApp number (or is unreachable) -- skipped.`);
   }
 
-  const message: Message = await c.sendMessage(registered._serialized, text);
+  let messageContent: string | MessageMedia = text;
+  let options: any = {};
+
+  if (mediaPath && fs.existsSync(mediaPath)) {
+    try {
+      messageContent = MessageMedia.fromFilePath(mediaPath);
+      if (text) {
+        options.caption = text;
+      }
+    } catch (err) {
+      console.error(`[${owner}] Failed to load media from ${mediaPath}:`, err);
+      // Fallback to text only if media fails
+      messageContent = text;
+    }
+  }
+
+  const message: Message = await c.sendMessage(registered._serialized, messageContent, options);
   if (!message?.id) {
     // Known whatsapp-web.js quirk: sometimes this means the message still
     // went through and only the confirmation object failed to build --

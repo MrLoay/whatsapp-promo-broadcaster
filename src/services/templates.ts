@@ -8,6 +8,8 @@ export interface MessageTemplate {
   language: string;
   variable_count: number;
   personalize_name: number;
+  media_path?: string;
+  media_mime_type?: string;
 }
 
 export interface RegisterTemplateInput {
@@ -18,13 +20,15 @@ export interface RegisterTemplateInput {
   bodyText: string;
   /** If true, {{1}} is auto-filled per recipient from contacts.name at send time instead of a fixed campaign-wide value. */
   personalizeName?: boolean;
+  mediaPath?: string;
+  mediaMimeType?: string;
 }
 
 /** Registers a template scoped to owner. bodyText IS the actual message that gets sent. */
 export function registerTemplate(db: Database.Database, owner: string, input: RegisterTemplateInput): MessageTemplate {
   const info = db
-    .prepare(`INSERT INTO templates (owner, name, body_text, language, variable_count, personalize_name) VALUES (?, ?, ?, ?, ?, ?)`)
-    .run(owner, input.name, input.bodyText, input.language ?? 'en_US', input.variableCount ?? 0, input.personalizeName ? 1 : 0);
+    .prepare(`INSERT INTO templates (owner, name, body_text, language, variable_count, personalize_name, media_path, media_mime_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(owner, input.name, input.bodyText, input.language ?? 'en_US', input.variableCount ?? 0, input.personalizeName ? 1 : 0, input.mediaPath ?? null, input.mediaMimeType ?? null);
   return getTemplateById(db, owner, info.lastInsertRowid as number)!;
 }
 

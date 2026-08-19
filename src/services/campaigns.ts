@@ -52,7 +52,14 @@ export function createCampaign(
  * and marked personalize_name so each recipient gets their own name filled
  * in automatically at send time.
  */
-export function createQuickCampaign(db: Database.Database, owner: string, name: string, message: string): Campaign {
+export function createQuickCampaign(
+  db: Database.Database, 
+  owner: string, 
+  name: string, 
+  message: string,
+  mediaPath?: string,
+  mediaMimeType?: string
+): Campaign {
   const personalizeName = message.includes('{{name}}');
   const bodyText = personalizeName ? message.replace(/\{\{name\}\}/g, '{{1}}') : message;
 
@@ -61,6 +68,8 @@ export function createQuickCampaign(db: Database.Database, owner: string, name: 
     bodyText,
     variableCount: personalizeName ? 1 : 0,
     personalizeName,
+    mediaPath,
+    mediaMimeType
   });
 
   return createCampaign(db, owner, name, template.id, []);
@@ -72,7 +81,9 @@ export async function sendNow(
   owner: string,
   message: string,
   delayMode?: string,
-  customDelay?: number
+  customDelay?: number,
+  mediaPath?: string,
+  mediaMimeType?: string
 ): Promise<SendSummary> {
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
@@ -80,7 +91,7 @@ export async function sendNow(
     finalMessage = `{Hello|Hi|Hey|Greetings} {{name}},\n\n${finalMessage}`;
   }
 
-  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage);
+  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage, mediaPath, mediaMimeType);
   return sendCampaign(db, owner, campaign.id, delayMode, customDelay);
 }
 

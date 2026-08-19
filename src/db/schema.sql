@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS templates (
   language TEXT NOT NULL DEFAULT 'en_US',
   variable_count INTEGER NOT NULL DEFAULT 0,
   personalize_name INTEGER NOT NULL DEFAULT 0, -- if true, {{1}} is auto-filled per recipient from contacts.name at send time
+  media_path TEXT,
+  media_mime_type TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (owner, name)
 );

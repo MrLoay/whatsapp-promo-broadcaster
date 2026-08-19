@@ -40,6 +40,11 @@
           <input type="number" id="customDelayInput" name="customDelay" min="1" max="600" value="120" style="width: 100%; max-width: 200px; padding: 8px;" />
         </div>
 
+        <div style="margin-bottom: 16px;">
+          <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Attach Image or Video (Optional):</label>
+          <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
+        </div>
+
         <textarea name="message" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!"></textarea><br /><br />
         <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
       </form>
@@ -138,14 +143,18 @@
       btn.disabled = true;
       btn.textContent = t('home.send.sending');
       try {
+        const formData = new FormData();
+        formData.append('message', form.message.value);
+        formData.append('accountId', selectedAccount);
+        formData.append('delayMode', delayMode);
+        formData.append('customDelay', customDelay);
+        if (form.media.files[0]) {
+          formData.append('media', form.media.files[0]);
+        }
+
         const summary = await api('/campaigns/send-now', {
           method: 'POST',
-          body: JSON.stringify({
-            message: form.message.value,
-            accountId: selectedAccount,
-            delayMode,
-            customDelay,
-          })
+          body: formData
         });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
         form.reset();

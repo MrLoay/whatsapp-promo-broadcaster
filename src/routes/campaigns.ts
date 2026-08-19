@@ -56,15 +56,28 @@ campaignsRouter.post('/campaigns/quick', (req, res) => {
   }
 });
 
+import multer from 'multer';
+import path from 'path';
+
+const upload = multer({
+  dest: path.join(process.cwd(), 'data', 'media'),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+});
+
 // One-click flow from the Home page: type a message, send to everyone
 // opted-in right now, no separate draft/review step.
-campaignsRouter.post('/campaigns/send-now', async (req, res) => {
+campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, res) => {
   const { message, delayMode, customDelay } = req.body ?? {};
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
   }
+  
+  const mediaPath = req.file?.path;
+  const mimeType = req.file?.mimetype;
+
   try {
-    const summary = await sendNow(getDb(), req.session.username!, message, delayMode, customDelay);
+    const delayNum = customDelay ? Number(customDelay) : undefined;
+    const summary = await sendNow(getDb(), req.session.username!, message, delayMode, delayNum, mediaPath, mimeType);
     res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
