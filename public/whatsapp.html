@@ -78,7 +78,10 @@
   <main>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h1 style="margin:0;">WhatsApp Accounts & Proxies</h1>
-      <button id="openAddModalBtn">+ Add Account</button>
+      <div style="display: flex; gap: 8px;">
+        <button id="openBulkAddModalBtn" class="secondary">+ Bulk Add</button>
+        <button id="openAddModalBtn">+ Add Account</button>
+      </div>
     </div>
 
     <div id="needsLiveMode" style="display:none;" class="card muted">
@@ -109,6 +112,26 @@
           <div style="display: flex; justify-content: flex-end; gap: 8px;">
             <button type="button" class="secondary" id="closeAddModalBtn">Cancel</button>
             <button type="submit">Connect Account</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Bulk Add Modal -->
+    <div class="modal-backdrop" id="bulkAddModal" style="display: none;">
+      <div class="modal" style="max-width: 600px;">
+        <h2>Bulk Add Accounts</h2>
+        <p class="muted" style="font-size: 14px; margin-bottom: 12px;">
+          Paste a list of accounts and proxies. Format: <code>id,proxy_url</code> (one per line).<br>
+          Example:<br>
+          <code>2,http://user:pass@1.1.1.1:8080</code><br>
+          <code>3,http://user:pass@2.2.2.2:8080</code>
+        </p>
+        <form id="bulkAddForm">
+          <textarea name="bulkData" rows="10" style="width: 100%; margin-bottom: 16px; font-family: monospace; padding: 8px;" placeholder="id,proxy_url"></textarea>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" class="secondary" id="closeBulkAddModalBtn">Cancel</button>
+            <button type="submit">Add All</button>
           </div>
         </form>
       </div>
@@ -250,6 +273,53 @@
       } catch (err) {
         alert(err.message);
       }
+    };
+
+    document.getElementById('openBulkAddModalBtn').onclick = () => {
+      document.getElementById('bulkAddModal').style.display = 'flex';
+    };
+    document.getElementById('closeBulkAddModalBtn').onclick = () => {
+      document.getElementById('bulkAddModal').style.display = 'none';
+    };
+
+    document.getElementById('bulkAddForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const btn = form.querySelector('button[type="submit"]');
+      const lines = form.bulkData.value.split('\n').map(l => l.trim()).filter(l => l);
+      
+      if (lines.length === 0) return alert('No data provided.');
+      
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const line of lines) {
+        const parts = line.split(',');
+        const id = parts[0]?.trim();
+        const proxy_url = parts.slice(1).join(',').trim() || null;
+        
+        if (!id) continue;
+        
+        try {
+          await api('/whatsapp/connect', {
+            method: 'POST',
+            body: JSON.stringify({ id, account_name: `Account ${id}`, proxy_url })
+          });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to add account ${id}:`, err);
+          errorCount++;
+        }
+      }
+      
+      alert(`Bulk add complete: ${successCount} added, ${errorCount} failed.`);
+      document.getElementById('bulkAddModal').style.display = 'none';
+      form.reset();
+      btn.disabled = false;
+      btn.textContent = 'Add All';
     };
 
     (async () => {
