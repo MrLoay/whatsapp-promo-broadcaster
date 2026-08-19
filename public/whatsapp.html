@@ -296,10 +296,24 @@
       let successCount = 0;
       let errorCount = 0;
       
-      for (const line of lines) {
-        const parts = line.split(',');
-        const id = parts[0]?.trim();
-        const proxy_url = parts.slice(1).join(',').trim() || null;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let id, proxy_url;
+        
+        if (line.includes(',')) {
+          const parts = line.split(',');
+          id = parts[0]?.trim();
+          proxy_url = parts.slice(1).join(',').trim();
+        } else {
+          // No comma provided? Assume the whole line is the proxy.
+          id = `BulkAcc-${Math.floor(Math.random() * 10000)}-${i}`;
+          proxy_url = line.trim();
+        }
+
+        // Auto-prefix http:// if they forgot it
+        if (proxy_url && !proxy_url.startsWith('http')) {
+          proxy_url = 'http://' + proxy_url;
+        }
         
         if (!id) continue;
         
