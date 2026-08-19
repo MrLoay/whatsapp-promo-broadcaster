@@ -3,6 +3,7 @@ import { config } from '../config';
 import { sendCampaignMessage } from '../whatsapp/dispatch';
 import { listOptedInContacts, type Contact } from './contacts';
 import { getTemplateById, registerTemplate, type MessageTemplate } from './templates';
+import { getCreditBalance, deductCredits } from './credits';
 
 export interface Campaign {
   id: number;
@@ -225,6 +226,14 @@ export async function sendCampaign(
     isFirst = false;
 
     try {
+      const balance = getCreditBalance(db, owner);
+      if (balance <= 0) {
+        throw new Error('Insufficient credits. Please top up.');
+      }
+      if (!deductCredits(db, owner, 1)) {
+        throw new Error('Failed to deduct credits.');
+      }
+
       const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
       const result = await sendCampaignMessage(owner, contact.phone, template, variableValues);
       upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
@@ -233,6 +242,9 @@ export async function sendCampaign(
     } catch (err) {
       upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
       summary.failed++;
+      if ((err as Error).message.includes('credits')) {
+        break; // Stop campaign if out of credits
+      }
     }
   }
 

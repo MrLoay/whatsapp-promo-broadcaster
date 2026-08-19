@@ -70,10 +70,17 @@
       }
     }
 
+    let globalCredits = 0;
+
     async function loadStats() {
-      const [contacts, campaigns] = await Promise.all([api('/contacts'), api('/campaigns')]);
+      const [contacts, campaigns, creditsRes] = await Promise.all([
+        api('/contacts'), 
+        api('/campaigns'),
+        api('/credits')
+      ]);
       globalContacts = contacts;
       globalCampaigns = campaigns;
+      globalCredits = creditsRes.balance || 0;
       updateMetricsDisplay();
     }
 
@@ -91,6 +98,7 @@
       });
 
       const stats = [
+        ['Available Credits', new Intl.NumberFormat().format(globalCredits)],
         [t('home.stat.contacts'), totalContacts],
         [t('home.stat.optedIn'), optedIn],
         [t('home.stat.optedOut'), optedOut],

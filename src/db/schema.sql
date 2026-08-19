@@ -80,3 +80,9 @@ CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
 -- yet would fail immediately, before the migration in db/index.ts has a
 -- chance to add it. Those indexes are created programmatically after the
 -- migration runs instead -- see createPostMigrationIndexes() in db/index.ts.
+
+CREATE TABLE IF NOT EXISTS user_credits (
+  owner TEXT PRIMARY KEY,
+  balance INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
