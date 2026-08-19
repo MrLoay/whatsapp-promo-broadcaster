@@ -182,11 +182,11 @@
               ${qrHtml}
             </div>
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
-              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}')">Delete</button>
+              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}', this)">Delete</button>
               ${displayStatus !== 'DISCONNECTED' ? `
-                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}')">Disconnect</button>
+                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">Disconnect</button>
               ` : `
-                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}')">Connect</button>
+                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}', this)">Connect</button>
               `}
             </div>
           </div>
@@ -194,7 +194,8 @@
       }).join('');
     }
 
-    async function reconnectAccount(id, name, proxyUrl) {
+    async function reconnectAccount(id, name, proxyUrl, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
       try {
         await api('/whatsapp/connect', {
           method: 'POST',
@@ -202,11 +203,13 @@
         });
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Connect'; }
       }
     }
 
-    async function disconnectAccount(id) {
+    async function disconnectAccount(id, btn) {
       if (!confirm(`Disconnect account ${id}?`)) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Disconnecting...'; }
       try {
         await api('/whatsapp/disconnect', {
           method: 'POST',
@@ -214,11 +217,13 @@
         });
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Disconnect'; }
       }
     }
 
-    async function deleteAccountCard(id) {
+    async function deleteAccountCard(id, btn) {
       if (!confirm(`Are you sure you want to completely delete account "${id}"?`)) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
       try {
         await api('/whatsapp/delete', {
           method: 'POST',
@@ -227,6 +232,7 @@
         window.location.reload();
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
       }
     }
 
