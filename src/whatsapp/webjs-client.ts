@@ -76,8 +76,9 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       }
     }
 
+    const safeClientId = owner.replace(/[^a-zA-Z0-9_-]/g, '_');
     s.client = new Client({
-      authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: owner }),
+      authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: safeClientId }),
       puppeteer: {
         headless: true,
         args: puppeteerArgs,
