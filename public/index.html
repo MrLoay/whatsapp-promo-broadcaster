@@ -150,10 +150,10 @@
 
       // Compile message variations into spintax
       const messages = [];
-      for (let i = 0; i < msgCount; i++) {
-        const val = document.getElementById(`message_${i}`).value.trim();
+      document.querySelectorAll('#msgContainers textarea').forEach(ta => {
+        const val = ta.value.trim();
         if (val) messages.push(val);
-      }
+      });
       if (messages.length === 0) {
         errorEl.textContent = "Please enter at least one message variation.";
         return;
@@ -184,7 +184,7 @@
         });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
         // reset form but keep tabs structure
-        for (let i = 0; i < msgCount; i++) document.getElementById(`message_${i}`).value = '';
+        document.querySelectorAll('#msgContainers textarea').forEach(ta => ta.value = '');
         await loadStats();
       } catch (err) {
         errorEl.textContent = err.message;
@@ -194,10 +194,11 @@
     });
 
     // --- Message Tabs Logic ---
-    let msgCount = 1;
+    let nextMsgId = 1;
     let activeMsg = 0;
 
     function switchTab(idx) {
+      if (!document.getElementById(`message_${idx}`)) return;
       activeMsg = idx;
       document.querySelectorAll('.active-tab').forEach(el => el.classList.remove('active-tab', 'btn-primary'));
       document.querySelectorAll('#msgTabs button[data-idx]').forEach(el => {
@@ -215,18 +216,27 @@
     }
 
     document.getElementById('msgTabs').addEventListener('click', (e) => {
-      if (e.target.dataset.idx !== undefined) switchTab(parseInt(e.target.dataset.idx));
+      const target = e.target;
+      if (target.classList.contains('del-tab')) {
+        const idx = parseInt(target.parentElement.dataset.idx);
+        target.parentElement.remove();
+        document.getElementById(`message_${idx}`).remove();
+        if (activeMsg === idx) switchTab(0);
+        saveDraft();
+        return;
+      }
+      if (target.dataset.idx !== undefined) switchTab(parseInt(target.dataset.idx));
     });
 
     document.getElementById('addMsgBtn').addEventListener('click', () => {
-      if (msgCount >= 5) return alert("Maximum 5 message variations allowed.");
-      const idx = msgCount++;
+      if (document.querySelectorAll('#msgContainers textarea').length >= 5) return alert("Maximum 5 message variations allowed.");
+      const idx = nextMsgId++;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'secondary';
       btn.dataset.idx = idx;
-      btn.style = 'padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;';
-      btn.textContent = `Message ${idx + 1}`;
+      btn.style = 'padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; display: flex; align-items: center; gap: 6px;';
+      btn.innerHTML = `Msg ${idx + 1} <span class="del-tab" style="color: #ef4444; cursor: pointer; font-weight: bold;">&times;</span>`;
       document.getElementById('addMsgBtn').before(btn);
 
       const ta = document.createElement('textarea');
@@ -246,10 +256,12 @@
       localStorage.setItem('draft_account', form.account.value);
       localStorage.setItem('draft_delayMode', form.delayMode.value);
       localStorage.setItem('draft_customDelay', form.customDelay.value);
-      localStorage.setItem('draft_msgCount', msgCount);
-      for (let i = 0; i < msgCount; i++) {
-        localStorage.setItem(`draft_message_${i}`, document.getElementById(`message_${i}`).value);
-      }
+      
+      const textareas = document.querySelectorAll('#msgContainers textarea');
+      localStorage.setItem('draft_msgCount', textareas.length);
+      textareas.forEach((ta, i) => {
+        localStorage.setItem(`draft_message_${i}`, ta.value);
+      });
     }
 
     function restoreDraft() {
@@ -264,10 +276,11 @@
       const savedCount = parseInt(localStorage.getItem('draft_msgCount') || '1');
       for (let i = 1; i < savedCount; i++) document.getElementById('addMsgBtn').click();
       
-      for (let i = 0; i < msgCount; i++) {
+      const textareas = document.querySelectorAll('#msgContainers textarea');
+      textareas.forEach((ta, i) => {
         const val = localStorage.getItem(`draft_message_${i}`);
-        if (val) document.getElementById(`message_${i}`).value = val;
-      }
+        if (val) ta.value = val;
+      });
       switchTab(0);
     }
 
