@@ -45,7 +45,19 @@
           <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
         </div>
 
-        <textarea name="message" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!"></textarea><br /><br />
+        <div style="margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+          <label style="font-weight: 600;">Message Content (Multiple Variations):</label>
+          <span class="muted" style="font-size: 12px;">Reduces ban risk</span>
+        </div>
+        <div id="msgTabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
+          <button type="button" class="secondary active-tab" data-idx="0" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #2563eb; color: white;">Message 1</button>
+          <button type="button" class="secondary" id="addMsgBtn" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">+ Add</button>
+        </div>
+        <div id="msgContainers">
+          <textarea name="message_0" id="message_0" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!" style="border-top-left-radius: 0;"></textarea>
+        </div>
+        <input type="hidden" name="message" id="finalMessagePayload" />
+        <br />
         <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
       </form>
       <div class="error" id="sendNowError"></div>
@@ -136,15 +148,29 @@
       const delayMode = form.delayMode.value;
       const customDelay = Number(form.customDelay.value || 120);
 
+      // Compile message variations into spintax
+      const messages = [];
+      for (let i = 0; i < msgCount; i++) {
+        const val = document.getElementById(`message_${i}`).value.trim();
+        if (val) messages.push(val);
+      }
+      if (messages.length === 0) {
+        errorEl.textContent = "Please enter at least one message variation.";
+        return;
+      }
+      // If 1 message, just use it. If multiple, wrap in {A|B|C} spintax.
+      const finalPayload = messages.length === 1 ? messages[0] : `{${messages.join('|')}}`;
+      document.getElementById('finalMessagePayload').value = finalPayload;
+
       if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel}, Delay: ${delayMode})`)) return;
 
-      const btn = form.querySelector('button');
+      const btn = form.querySelector('button[type="submit"]');
       const originalLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = t('home.send.sending');
       try {
         const formData = new FormData();
-        formData.append('message', form.message.value);
+        formData.append('message', finalPayload);
         formData.append('accountId', selectedAccount);
         formData.append('delayMode', delayMode);
         formData.append('customDelay', customDelay);
@@ -157,7 +183,8 @@
           body: formData
         });
         resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
-        form.reset();
+        // reset form but keep tabs structure
+        for (let i = 0; i < msgCount; i++) document.getElementById(`message_${i}`).value = '';
         await loadStats();
       } catch (err) {
         errorEl.textContent = err.message;
@@ -165,13 +192,64 @@
       btn.disabled = false;
       btn.textContent = originalLabel;
     });
+
+    // --- Message Tabs Logic ---
+    let msgCount = 1;
+    let activeMsg = 0;
+
+    function switchTab(idx) {
+      activeMsg = idx;
+      document.querySelectorAll('.active-tab').forEach(el => el.classList.remove('active-tab', 'btn-primary'));
+      document.querySelectorAll('#msgTabs button[data-idx]').forEach(el => {
+        if (parseInt(el.dataset.idx) === idx) {
+          el.classList.add('active-tab');
+          el.style.background = '#2563eb';
+          el.style.color = 'white';
+        } else {
+          el.style.background = '';
+          el.style.color = '';
+        }
+      });
+      document.querySelectorAll('#msgContainers textarea').forEach(el => el.style.display = 'none');
+      document.getElementById(`message_${idx}`).style.display = 'block';
+    }
+
+    document.getElementById('msgTabs').addEventListener('click', (e) => {
+      if (e.target.dataset.idx !== undefined) switchTab(parseInt(e.target.dataset.idx));
+    });
+
+    document.getElementById('addMsgBtn').addEventListener('click', () => {
+      if (msgCount >= 5) return alert("Maximum 5 message variations allowed.");
+      const idx = msgCount++;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'secondary';
+      btn.dataset.idx = idx;
+      btn.style = 'padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;';
+      btn.textContent = `Message ${idx + 1}`;
+      document.getElementById('addMsgBtn').before(btn);
+
+      const ta = document.createElement('textarea');
+      ta.name = `message_${idx}`;
+      ta.id = `message_${idx}`;
+      ta.placeholder = "Another variation of your message...";
+      ta.style = 'border-top-left-radius: 0; display: none;';
+      document.getElementById('msgContainers').appendChild(ta);
+
+      switchTab(idx);
+      saveDraft();
+    });
+
     // --- Draft Persistence Logic ---
     function saveDraft() {
       const form = document.getElementById('sendNowForm');
       localStorage.setItem('draft_account', form.account.value);
       localStorage.setItem('draft_delayMode', form.delayMode.value);
       localStorage.setItem('draft_customDelay', form.customDelay.value);
-      localStorage.setItem('draft_message', form.message.value);
+      localStorage.setItem('draft_msgCount', msgCount);
+      for (let i = 0; i < msgCount; i++) {
+        localStorage.setItem(`draft_message_${i}`, document.getElementById(`message_${i}`).value);
+      }
     }
 
     function restoreDraft() {
@@ -182,7 +260,15 @@
         document.getElementById('customDelayContainer').style.display = form.delayMode.value === 'custom' ? 'block' : 'none';
       }
       if (localStorage.getItem('draft_customDelay')) form.customDelay.value = localStorage.getItem('draft_customDelay');
-      if (localStorage.getItem('draft_message')) form.message.value = localStorage.getItem('draft_message');
+      
+      const savedCount = parseInt(localStorage.getItem('draft_msgCount') || '1');
+      for (let i = 1; i < savedCount; i++) document.getElementById('addMsgBtn').click();
+      
+      for (let i = 0; i < msgCount; i++) {
+        const val = localStorage.getItem(`draft_message_${i}`);
+        if (val) document.getElementById(`message_${i}`).value = val;
+      }
+      switchTab(0);
     }
 
     document.getElementById('sendNowForm').addEventListener('input', saveDraft);
