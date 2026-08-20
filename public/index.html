@@ -165,10 +165,34 @@
       btn.disabled = false;
       btn.textContent = originalLabel;
     });
+    // --- Draft Persistence Logic ---
+    function saveDraft() {
+      const form = document.getElementById('sendNowForm');
+      localStorage.setItem('draft_account', form.account.value);
+      localStorage.setItem('draft_delayMode', form.delayMode.value);
+      localStorage.setItem('draft_customDelay', form.customDelay.value);
+      localStorage.setItem('draft_message', form.message.value);
+    }
+
+    function restoreDraft() {
+      const form = document.getElementById('sendNowForm');
+      if (localStorage.getItem('draft_account')) form.account.value = localStorage.getItem('draft_account');
+      if (localStorage.getItem('draft_delayMode')) {
+        form.delayMode.value = localStorage.getItem('draft_delayMode');
+        document.getElementById('customDelayContainer').style.display = form.delayMode.value === 'custom' ? 'block' : 'none';
+      }
+      if (localStorage.getItem('draft_customDelay')) form.customDelay.value = localStorage.getItem('draft_customDelay');
+      if (localStorage.getItem('draft_message')) form.message.value = localStorage.getItem('draft_message');
+    }
+
+    document.getElementById('sendNowForm').addEventListener('input', saveDraft);
+    document.getElementById('sendNowForm').addEventListener('change', saveDraft);
+    // -------------------------------
 
     (async () => {
       await renderNav('index.html');
       await loadAccountsDropdown();
+      restoreDraft();
       await loadStats();
     })();
   </script>
