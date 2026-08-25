@@ -50,12 +50,16 @@
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h2 style="margin: 0;" data-i18n="contacts.table.heading">All contacts</h2>
-        <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
+        <div style="display: flex; gap: 8px;">
+          <button id="deleteSelectedBtn" class="danger" style="display: none;">Delete Selected</button>
+          <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
+        </div>
       </div>
       <div id="syncStatus" class="muted" style="margin-bottom: 10px;"></div>
       <table>
         <thead>
           <tr>
+            <th style="width: 40px;"><input type="checkbox" id="selectAllCheckbox" /></th>
             <th data-i18n="contacts.table.phone">Phone</th>
             <th data-i18n="contacts.table.name">Name</th>
             <th data-i18n="contacts.table.status">Status</th>
@@ -69,6 +73,41 @@
   <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
+    function updateDeleteSelectedBtn() {
+      const checked = document.querySelectorAll('.contactCheckbox:checked').length;
+      const btn = document.getElementById('deleteSelectedBtn');
+      btn.style.display = checked > 0 ? 'block' : 'none';
+      btn.textContent = `Delete Selected (${checked})`;
+    }
+
+    document.getElementById('selectAllCheckbox').addEventListener('change', (e) => {
+      document.querySelectorAll('.contactCheckbox').forEach(cb => {
+        cb.checked = e.target.checked;
+      });
+      updateDeleteSelectedBtn();
+    });
+
+    document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
+      const checkboxes = document.querySelectorAll('.contactCheckbox:checked');
+      if (!confirm(`Are you sure you want to delete ${checkboxes.length} contacts?`)) return;
+      
+      const btn = document.getElementById('deleteSelectedBtn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+      
+      for (const cb of checkboxes) {
+        try {
+          await api(`/contacts/${cb.value}`, { method: 'DELETE' });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      document.getElementById('selectAllCheckbox').checked = false;
+      btn.disabled = false;
+      await loadContacts();
+    });
+
     async function loadContacts() {
       const contacts = await api('/contacts');
       document.getElementById('contactsBody').innerHTML = contacts
@@ -76,6 +115,7 @@
           const isSkipped = c.opt_in_status === 'opted_out';
           const statusLabel = isSkipped ? t('status.skipped') : t('status.messaging');
           return `<tr>
+            <td><input type="checkbox" class="contactCheckbox" value="${c.id}" /></td>
             <td>${escapeHtml(c.phone)}</td>
             <td>${escapeHtml(c.name || '')}</td>
             <td><span class="badge ${c.opt_in_status}">${statusLabel}</span></td>
@@ -83,6 +123,12 @@
           </tr>`;
         })
         .join('');
+      
+      document.querySelectorAll('.contactCheckbox').forEach(cb => {
+        cb.addEventListener('change', updateDeleteSelectedBtn);
+      });
+      updateDeleteSelectedBtn();
+
       document.querySelectorAll('.deleteBtn').forEach((btn) => {
         btn.onclick = async () => {
           if (!confirm(t('contacts.table.deleteConfirm', { phone: btn.dataset.phone }))) return;

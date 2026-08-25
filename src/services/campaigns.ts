@@ -83,7 +83,8 @@ export async function sendNow(
   delayMode?: string,
   customDelay?: number,
   mediaPath?: string,
-  mediaMimeType?: string
+  mediaMimeType?: string,
+  accountId?: string
 ): Promise<SendSummary> {
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
@@ -92,7 +93,7 @@ export async function sendNow(
   }
 
   const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage, mediaPath, mediaMimeType);
-  return sendCampaign(db, owner, campaign.id, delayMode, customDelay);
+  return sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId);
 }
 
 export function getCampaignById(db: Database.Database, owner: string, id: number): Campaign | undefined {
@@ -180,7 +181,8 @@ export async function sendCampaign(
   owner: string,
   campaignId: number,
   delayMode: string = 'auto',
-  customDelaySec: number = 120
+  customDelaySec: number = 120,
+  accountId?: string
 ): Promise<SendSummary> {
   const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
@@ -189,9 +191,6 @@ export async function sendCampaign(
 
   db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
 
-  // Only recipients already sent/delivered/read are done -- 'failed' ones are
-  // retried on the next call, so re-running a campaign fixes transient errors
-  // (e.g. the whatsapp-web.js "no message id" quirk) without creating duplicates.
   const alreadyDone = new Set(
     (
       db
@@ -201,7 +200,6 @@ export async function sendCampaign(
   );
 
   const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
-
   const summary: SendSummary = { campaignId, totalTargeted: candidates.length, sent: 0, failed: 0, throttledOut: 0 };
   let recentlyMessaged = countRecentlyMessaged(db, owner);
   const defaultIntervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
@@ -213,21 +211,30 @@ export async function sendCampaign(
        status = excluded.status, wamid = excluded.wamid, error = excluded.error, sent_at = excluded.sent_at`
   );
 
+  // Fetch active proxy accounts
+  const accounts = db.prepare(`SELECT id FROM accounts WHERE owner = ? AND status IN ('READY', 'QR_READY')`).all(owner) as { id: string }[];
+  let validAccounts = accounts.map(a => a.id);
+  if (accountId && accountId !== 'all') {
+    validAccounts = [accountId];
+  }
+  if (validAccounts.length === 0) {
+    validAccounts = [owner]; // fallback to master if no proxy found
+  }
+
   let isFirst = true;
+  let accountIndex = 0;
+
   for (const contact of candidates) {
     if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
       summary.throttledOut++;
       continue;
     }
 
-    // Determine delay BEFORE sending next message (except first message)
     if (!isFirst) {
       let sleepTimeMs = defaultIntervalMs;
       if (delayMode === 'old_acc') {
-        // 2 to 5 minutes randomized (120,000ms to 300,000ms)
         sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
       } else if (delayMode === 'moderate') {
-        // 10 to 30 seconds randomized (10,000ms to 30,000ms)
         sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
       } else if (delayMode === 'custom') {
         sleepTimeMs = Math.max(1000, customDelaySec * 1000);
@@ -235,6 +242,9 @@ export async function sendCampaign(
       await sleep(sleepTimeMs);
     }
     isFirst = false;
+
+    const dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
+    accountIndex++;
 
     try {
       const balance = getCreditBalance(db, owner);
@@ -246,7 +256,7 @@ export async function sendCampaign(
       }
 
       const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
-      const result = await sendCampaignMessage(owner, contact.phone, template, variableValues);
+      const result = await sendCampaignMessage(dispatchAccountId, contact.phone, template, variableValues);
       upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
       summary.sent++;
       recentlyMessaged++;

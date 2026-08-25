@@ -67,7 +67,7 @@ const upload = multer({
 // One-click flow from the Home page: type a message, send to everyone
 // opted-in right now, no separate draft/review step.
 campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, res) => {
-  const { message, delayMode, customDelay } = req.body ?? {};
+  const { message, delayMode, customDelay, accountId } = req.body ?? {};
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
   }
@@ -77,7 +77,7 @@ campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, 
 
   try {
     const delayNum = customDelay ? Number(customDelay) : undefined;
-    const summary = await sendNow(getDb(), req.session.username!, message, delayMode, delayNum, mediaPath, mimeType);
+    const summary = await sendNow(getDb(), req.session.username!, message, delayMode, delayNum, mediaPath, mimeType, accountId);
     res.json(summary);
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
