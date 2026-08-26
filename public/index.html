@@ -223,7 +223,10 @@
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <strong>${escapeHtml(c.name)}</strong>
-              <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
+              <div>
+                ${c.status === 'sending' ? `<button onclick="stopCampaign(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; margin-right: 8px;">Stop</button>` : ''}
+                <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
+              </div>
             </div>
             <div style="display: flex; gap: 16px; font-size: 13px;">
               <span style="color: #2563eb;">Targeted: <b>${c.totalTargeted || 0}</b></span>
@@ -256,6 +259,16 @@
         await loadStats(); // silently update global stats too
       } catch (e) {
         console.error('Live monitor error', e);
+      }
+    }
+
+    async function stopCampaign(id) {
+      if (!confirm('Are you sure you want to completely stop this broadcast?')) return;
+      try {
+        await api('/campaigns/' + id + '/stop', { method: 'POST' });
+        pollLiveProcess(); // refresh instantly
+      } catch (err) {
+        alert(err.message);
       }
     }
 

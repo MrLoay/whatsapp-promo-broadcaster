@@ -235,6 +235,12 @@ export async function sendCampaign(
     let accountIndex = 0;
 
     for (const contact of candidates) {
+      // Check if user manually stopped the campaign
+      const currentStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string };
+      if (currentStatus && currentStatus.status !== 'sending') {
+        break;
+      }
+
       if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
         summary.throttledOut++;
         continue;
@@ -299,5 +305,10 @@ export function recordDeliveryStatus(
     ? `UPDATE campaign_recipients SET status = ?, ${column} = datetime('now') WHERE wamid = ?`
     : `UPDATE campaign_recipients SET status = ? WHERE wamid = ?`;
   const info = db.prepare(sql).run(status, wamid);
+  return info.changes > 0;
+}
+
+export function stopCampaign(db: Database.Database, owner: string, id: number): boolean {
+  const info = db.prepare(`UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ? AND owner = ? AND status = 'sending'`).run(id, owner);
   return info.changes > 0;
 }

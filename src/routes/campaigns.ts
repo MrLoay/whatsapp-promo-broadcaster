@@ -28,6 +28,16 @@ campaignsRouter.get('/campaigns/:id/recipients', (req, res) => {
   res.json(getCampaignRecipients(getDb(), req.session.username!, Number(req.params.id)));
 });
 
+campaignsRouter.post('/campaigns/:id/stop', (req, res) => {
+  const { stopCampaign } = require('../services/campaigns');
+  const stopped = stopCampaign(getDb(), req.session.username!, Number(req.params.id));
+  if (stopped) {
+    res.json({ stopped: true });
+  } else {
+    res.status(400).json({ error: 'Campaign is not currently sending or does not exist.' });
+  }
+});
+
 campaignsRouter.post('/campaigns', (req, res) => {
   const { name, templateId, variableValues } = req.body ?? {};
   if (!name || !templateId) {
