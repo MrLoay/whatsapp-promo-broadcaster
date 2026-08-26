@@ -212,7 +212,7 @@ export async function sendCampaign(
   );
 
   // Fetch active proxy accounts
-  const accounts = db.prepare(`SELECT id FROM accounts WHERE owner = ? AND status IN ('READY', 'QR_READY')`).all(owner) as { id: string }[];
+  const accounts = db.prepare(`SELECT id FROM accounts WHERE status IN ('READY', 'QR_READY')`).all() as { id: string }[];
   let validAccounts = accounts.map(a => a.id);
   if (accountId && accountId !== 'all') {
     validAccounts = [accountId];
