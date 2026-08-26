@@ -264,8 +264,30 @@ export async function sendCampaign(
       }
       isFirst = false;
 
-      const dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
-      accountIndex++;
+      let dispatchAccountId;
+      let accountValid = false;
+      
+      // Keep trying to find a valid account from the pool, or refresh the pool
+      while (validAccounts.length > 0) {
+        dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
+        const s = require('../whatsapp/webjs-client').getConnectionState(dispatchAccountId);
+        if (s.status === 'ready') {
+          accountValid = true;
+          accountIndex++;
+          break;
+        } else {
+          // Account went offline mid-campaign! Remove it from rotation.
+          console.warn(`[Campaign] Account ${dispatchAccountId} went offline. Removing from rotation.`);
+          validAccounts = validAccounts.filter(a => a !== dispatchAccountId);
+        }
+      }
+
+      if (!accountValid) {
+        // All accounts went offline mid-campaign
+        upsertRecipient.run(campaignId, contact.id, 'failed', null, 'All proxy accounts went offline mid-campaign.', null);
+        summary.failed++;
+        break; // stop the campaign entirely
+      }
 
       try {
         const balance = getCreditBalance(db, owner);
