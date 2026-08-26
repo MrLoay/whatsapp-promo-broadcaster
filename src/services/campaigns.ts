@@ -228,7 +228,12 @@ export async function sendCampaign(
       validAccounts = [accountId];
     }
     if (validAccounts.length === 0) {
-      validAccounts = [owner]; // fallback to master if no proxy found
+      const s = require('../whatsapp/webjs-client').getConnectionState(owner);
+      if (s.status === 'ready') {
+        validAccounts = [owner]; // fallback to master ONLY if it is actually ready
+      } else {
+        throw new Error(`No proxy accounts are READY, and the master account is also not ready. Please wait for them to connect.`);
+      }
     }
 
     let isFirst = true;

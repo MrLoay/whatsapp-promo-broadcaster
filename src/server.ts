@@ -71,11 +71,21 @@ if (require.main === module) {
     // was previously linked, this resumes it automatically without a new
     // QR scan; if not, it just sits idle until that account clicks Connect.
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
+    const { getAccountById } = require('./services/accounts');
     try {
-      // Start listeners for all accounts in the database (admin and proxies)
+      // Start listeners for dashboard users (admin accounts)
+      const users = JSON.parse(config.dashboard.users) as { username: string }[];
+      for (const { username } of users) {
+        const account = getAccountById(db, username);
+        startWebJsListeners(db, username, account?.proxy_url);
+      }
+      
+      // Start listeners for all proxy accounts in the database
       const allAccounts = db.prepare(`SELECT id, proxy_url FROM accounts`).all() as { id: string, proxy_url: string | null }[];
       for (const account of allAccounts) {
-        startWebJsListeners(db, account.id, account.proxy_url);
+        if (!users.some(u => u.username === account.id)) {
+          startWebJsListeners(db, account.id, account.proxy_url);
+        }
       }
     } catch (err) {
       console.error('Failed to auto-reconnect WhatsApp accounts:', (err as Error).message);
