@@ -106,6 +106,7 @@ export function getCampaignById(db: Database.Database, owner: string, id: number
 
 export interface CampaignWithStats extends Campaign {
   template_name: string;
+  totalTargeted: number;
   sent: number;
   delivered: number;
   read: number;
@@ -116,6 +117,7 @@ export function listCampaignsWithStats(db: Database.Database, owner: string): Ca
   return db
     .prepare(
       `SELECT c.*, t.name as template_name,
+         COUNT(cr.id) as totalTargeted,
          SUM(CASE WHEN cr.status = 'sent' THEN 1 ELSE 0 END) as sent,
          SUM(CASE WHEN cr.status = 'delivered' THEN 1 ELSE 0 END) as delivered,
          SUM(CASE WHEN cr.status = 'read' THEN 1 ELSE 0 END) as read,
@@ -195,86 +197,93 @@ export async function sendCampaign(
 
   db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
 
-  const alreadyDone = new Set(
-    (
-      db
-        .prepare(`SELECT contact_id FROM campaign_recipients WHERE campaign_id = ? AND status != 'failed'`)
-        .all(campaignId) as { contact_id: number }[]
-    ).map((r) => r.contact_id)
-  );
+  const summary: SendSummary = { campaignId, totalTargeted: 0, sent: 0, failed: 0, throttledOut: 0 };
+  
+  try {
+    const alreadyDone = new Set(
+      (
+        db
+          .prepare(`SELECT contact_id FROM campaign_recipients WHERE campaign_id = ? AND status != 'failed'`)
+          .all(campaignId) as { contact_id: number }[]
+      ).map((r) => r.contact_id)
+    );
 
-  const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
-  const summary: SendSummary = { campaignId, totalTargeted: candidates.length, sent: 0, failed: 0, throttledOut: 0 };
-  let recentlyMessaged = countRecentlyMessaged(db, owner);
-  const defaultIntervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
+    const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
+    summary.totalTargeted = candidates.length;
+    let recentlyMessaged = countRecentlyMessaged(db, owner);
+    const defaultIntervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
 
-  const upsertRecipient = db.prepare(
-    `INSERT INTO campaign_recipients (campaign_id, contact_id, status, wamid, error, sent_at)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(campaign_id, contact_id) DO UPDATE SET
-       status = excluded.status, wamid = excluded.wamid, error = excluded.error, sent_at = excluded.sent_at`
-  );
+    const upsertRecipient = db.prepare(
+      `INSERT INTO campaign_recipients (campaign_id, contact_id, status, wamid, error, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(campaign_id, contact_id) DO UPDATE SET
+         status = excluded.status, wamid = excluded.wamid, error = excluded.error, sent_at = excluded.sent_at`
+    );
 
-  // Fetch active proxy accounts
-  const accounts = db.prepare(`SELECT id FROM accounts WHERE status IN ('READY', 'QR_READY')`).all() as { id: string }[];
-  let validAccounts = accounts.map(a => a.id);
-  if (accountId && accountId !== 'all') {
-    validAccounts = [accountId];
-  }
-  if (validAccounts.length === 0) {
-    validAccounts = [owner]; // fallback to master if no proxy found
-  }
-
-  let isFirst = true;
-  let accountIndex = 0;
-
-  for (const contact of candidates) {
-    if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
-      summary.throttledOut++;
-      continue;
+    // Fetch active proxy accounts
+    const accounts = db.prepare(`SELECT id FROM accounts WHERE status IN ('READY', 'QR_READY')`).all() as { id: string }[];
+    let validAccounts = accounts.map(a => a.id);
+    if (accountId && accountId !== 'all') {
+      validAccounts = [accountId];
+    }
+    if (validAccounts.length === 0) {
+      validAccounts = [owner]; // fallback to master if no proxy found
     }
 
-    if (!isFirst) {
-      let sleepTimeMs = defaultIntervalMs;
-      if (delayMode === 'old_acc') {
-        sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
-      } else if (delayMode === 'moderate') {
-        sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
-      } else if (delayMode === 'custom') {
-        sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+    let isFirst = true;
+    let accountIndex = 0;
+
+    for (const contact of candidates) {
+      if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
+        summary.throttledOut++;
+        continue;
       }
-      await sleep(sleepTimeMs);
+
+      if (!isFirst) {
+        let sleepTimeMs = defaultIntervalMs;
+        if (delayMode === 'old_acc') {
+          sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
+        } else if (delayMode === 'moderate') {
+          sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
+        } else if (delayMode === 'custom') {
+          sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+        }
+        await sleep(sleepTimeMs);
+      }
+      isFirst = false;
+
+      const dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
+      accountIndex++;
+
+      try {
+        const balance = getCreditBalance(db, owner);
+        if (balance <= 0) {
+          throw new Error('Insufficient credits. Please top up.');
+        }
+        if (!deductCredits(db, owner, 1)) {
+          throw new Error('Failed to deduct credits.');
+        }
+
+        const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
+        const result = await sendCampaignMessage(dispatchAccountId, contact.phone, template, variableValues);
+        upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
+        summary.sent++;
+        recentlyMessaged++;
+      } catch (err) {
+        upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
+        summary.failed++;
+        if ((err as Error).message.includes('credits')) {
+          break; // Stop campaign if out of credits
+        }
+      }
     }
-    isFirst = false;
 
-    const dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
-    accountIndex++;
-
-    try {
-      const balance = getCreditBalance(db, owner);
-      if (balance <= 0) {
-        throw new Error('Insufficient credits. Please top up.');
-      }
-      if (!deductCredits(db, owner, 1)) {
-        throw new Error('Failed to deduct credits.');
-      }
-
-      const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
-      const result = await sendCampaignMessage(dispatchAccountId, contact.phone, template, variableValues);
-      upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
-      summary.sent++;
-      recentlyMessaged++;
-    } catch (err) {
-      upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
-      summary.failed++;
-      if ((err as Error).message.includes('credits')) {
-        break; // Stop campaign if out of credits
-      }
-    }
+    const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
+    db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
+  } catch (err) {
+    console.error('Fatal error in sendCampaign:', err);
+    db.prepare(`UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ?`).run(campaignId);
   }
-
-  const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
-  db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
 
   return summary;
 }
