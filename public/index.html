@@ -223,8 +223,9 @@
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <strong>${escapeHtml(c.name)}</strong>
-              <div>
-                ${c.status === 'sending' ? `<button onclick="stopCampaign(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; margin-right: 8px;">Stop</button>` : ''}
+              <div style="display: flex; align-items: center; gap: 8px;">
+                ${c.status === 'sending' ? `<button onclick="stopCampaign(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; border: none; cursor: pointer;">Stop</button>` : ''}
+                <button onclick="viewLogs(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #64748b; color: white; border-radius: 4px; border: none; cursor: pointer;">Logs</button>
                 <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
               </div>
             </div>
@@ -269,6 +270,33 @@
         pollLiveProcess(); // refresh instantly
       } catch (err) {
         alert(err.message);
+      }
+    }
+
+    async function viewLogs(id) {
+      document.getElementById('logsModal').style.display = 'flex';
+      const container = document.getElementById('logsContent');
+      container.innerHTML = 'Loading logs...';
+      try {
+        const recipients = await api('/campaigns/' + id + '/recipients');
+        const failed = recipients.filter(r => r.status === 'failed');
+        if (failed.length === 0) {
+          container.innerHTML = '<p class="muted">No failed messages in this campaign.</p>';
+          return;
+        }
+        let html = '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
+        html += '<tr><th style="padding:4px;border-bottom:1px solid var(--border);">Phone</th><th style="padding:4px;border-bottom:1px solid var(--border);">Error Reason</th><th style="padding:4px;border-bottom:1px solid var(--border);">Time</th></tr>';
+        failed.forEach(r => {
+          html += `<tr>
+            <td style="padding:4px;border-bottom:1px solid var(--border);">${escapeHtml(r.phone)}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);color:var(--danger);">${escapeHtml(r.error || 'Unknown')}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);">${r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : 'N/A'}</td>
+          </tr>`;
+        });
+        html += '</table>';
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<span style="color:var(--danger)">Error loading logs: ${err.message}</span>`;
       }
     }
 
@@ -374,5 +402,16 @@
       await loadStats();
     })();
   </script>
+
+  <!-- Logs Modal -->
+  <div class="modal-backdrop" id="logsModal" style="display: none;">
+    <div class="modal">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 style="margin: 0; font-size: 16px;">Campaign Logs</h2>
+        <button onclick="document.getElementById('logsModal').style.display = 'none'" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 0;">&times;</button>
+      </div>
+      <div id="logsContent"></div>
+    </div>
+  </div>
 </body>
 </html>
