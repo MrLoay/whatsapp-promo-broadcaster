@@ -264,7 +264,7 @@ export async function sendCampaign(
       }
       isFirst = false;
 
-      let dispatchAccountId;
+      let dispatchAccountId: string | undefined;
       let accountValid = false;
       
       // Keep trying to find a valid account from the pool, or refresh the pool
@@ -282,7 +282,7 @@ export async function sendCampaign(
         }
       }
 
-      if (!accountValid) {
+      if (!accountValid || !dispatchAccountId) {
         // All accounts went offline mid-campaign
         upsertRecipient.run(campaignId, contact.id, 'failed', null, 'All proxy accounts went offline mid-campaign.', null);
         summary.failed++;
