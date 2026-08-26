@@ -222,7 +222,12 @@ export async function sendTextMessage(
     return { id: fakeId };
   }
 
-  const c = await ensureReady(owner);
+  const s = getSession(owner);
+  if (s.connectionStatus !== 'ready' || !s.client) {
+    throw new Error(`WhatsApp session for ${owner} is not ready (status: ${s.connectionStatus})`);
+  }
+  const c = s.client;
+  
   const rawNumber = toPhoneE164.replace(/^\+/, '');
 
   const registered = await c.getNumberId(rawNumber);
