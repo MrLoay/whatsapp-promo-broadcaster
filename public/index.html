@@ -62,6 +62,10 @@
       </form>
       <div class="error" id="sendNowError"></div>
       <div class="muted" id="sendNowResult" style="margin-top: 10px;"></div>
+      
+      <div id="liveProcessContainer" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+        <div id="liveProcessList"></div>
+      </div>
     </div>
   </main>
   <script src="i18n.js"></script>
@@ -99,6 +103,10 @@
       globalCampaigns = campaigns;
       globalCredits = creditsRes.balance || 0;
       updateMetricsDisplay();
+      
+      if (globalCampaigns.some(c => c.status === 'sending' || c.status === 'draft')) {
+        startLiveMonitoring();
+      }
     }
 
     function updateMetricsDisplay() {
@@ -178,20 +186,78 @@
           formData.append('media', form.media.files[0]);
         }
 
-        const summary = await api('/campaigns/send-now', {
+        const response = await api('/campaigns/send-now', {
           method: 'POST',
           body: formData
         });
-        resultEl.textContent = `Targeted: ${summary.totalTargeted}, Sent: ${summary.sent}, Failed: ${summary.failed}, Throttled: ${summary.throttledOut}`;
-        // reset form but keep tabs structure
-        document.querySelectorAll('#msgContainers textarea').forEach(ta => ta.value = '');
-        await loadStats();
+        
+        if (response.started) {
+          resultEl.innerHTML = `<span style="color: #10b981; font-weight: bold;">✔ Broadcast started successfully!</span> Scroll down to monitor live progress.`;
+          document.querySelectorAll('#msgContainers textarea').forEach(ta => ta.value = '');
+          saveDraft(); // clear drafts
+          startLiveMonitoring();
+        }
       } catch (err) {
         errorEl.textContent = err.message;
       }
       btn.disabled = false;
       btn.textContent = originalLabel;
     });
+
+    // --- Live Process Monitoring ---
+    let liveMonitorInterval = null;
+    function startLiveMonitoring() {
+      if (liveMonitorInterval) return;
+      document.getElementById('liveProcessContainer').style.display = 'block';
+      pollLiveProcess();
+      liveMonitorInterval = setInterval(pollLiveProcess, 3000);
+    }
+
+    async function pollLiveProcess() {
+      try {
+        const campaigns = await api('/campaigns');
+        const active = campaigns.filter(c => c.status === 'sending' || c.status === 'draft');
+        const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 3);
+        
+        const renderCampaign = (c) => `
+          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <strong>${escapeHtml(c.name)}</strong>
+              <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
+            </div>
+            <div style="display: flex; gap: 16px; font-size: 13px;">
+              <span style="color: #2563eb;">Targeted: <b>${c.totalTargeted || 0}</b></span>
+              <span style="color: #10b981;">Sent: <b>${c.sent || 0}</b></span>
+              <span style="color: #ef4444;">Failed: <b>${c.failed || 0}</b></span>
+            </div>
+            ${c.status === 'sending' ? `
+              <div style="margin-top: 10px; background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
+                <div style="background: #2563eb; height: 100%; width: ${Math.min(100, ((c.sent || 0) + (c.failed || 0)) / Math.max(1, (c.totalTargeted || 1)) * 100)}%;"></div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        let html = '';
+        if (active.length > 0) {
+          html += `<h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2563eb;">📡 Active Broadcasts</h3>`;
+          html += active.map(renderCampaign).join('');
+        }
+        if (recent.length > 0) {
+          html += `<h3 style="margin: 16px 0 10px 0; font-size: 14px; color: var(--muted);">Recent History</h3>`;
+          html += recent.map(renderCampaign).join('');
+        }
+        
+        if (html === '') {
+          html = `<p class="muted">No broadcasts found.</p>`;
+        }
+        
+        document.getElementById('liveProcessList').innerHTML = html;
+        await loadStats(); // silently update global stats too
+      } catch (e) {
+        console.error('Live monitor error', e);
+      }
+    }
 
     // --- Message Tabs Logic ---
     let nextMsgId = 1;

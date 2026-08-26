@@ -85,7 +85,7 @@ export async function sendNow(
   mediaPath?: string,
   mediaMimeType?: string,
   accountId?: string
-): Promise<SendSummary> {
+): Promise<Campaign> {
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
   if (!finalMessage.includes('{{name}}') && !finalMessage.includes('{{1}}')) {
@@ -93,7 +93,11 @@ export async function sendNow(
   }
 
   const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage, mediaPath, mediaMimeType);
-  return sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId);
+  
+  // Kick off campaign dispatch in the background so the UI doesn't hang
+  sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId).catch(console.error);
+  
+  return campaign;
 }
 
 export function getCampaignById(db: Database.Database, owner: string, id: number): Campaign | undefined {
