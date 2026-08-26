@@ -117,7 +117,7 @@ export function listCampaignsWithStats(db: Database.Database, owner: string): Ca
   return db
     .prepare(
       `SELECT c.*, t.name as template_name,
-         COUNT(cr.id) as totalTargeted,
+         c.total_targeted as totalTargeted,
          SUM(CASE WHEN cr.status = 'sent' THEN 1 ELSE 0 END) as sent,
          SUM(CASE WHEN cr.status = 'delivered' THEN 1 ELSE 0 END) as delivered,
          SUM(CASE WHEN cr.status = 'read' THEN 1 ELSE 0 END) as read,
@@ -195,8 +195,6 @@ export async function sendCampaign(
   const template = getTemplateById(db, owner, campaign.template_id) as MessageTemplate;
   const fixedVariableValues: string[] = JSON.parse(campaign.variable_values ?? '[]');
 
-  db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now') WHERE id = ?`).run(campaignId);
-
   const summary: SendSummary = { campaignId, totalTargeted: 0, sent: 0, failed: 0, throttledOut: 0 };
   
   try {
@@ -210,6 +208,9 @@ export async function sendCampaign(
 
     const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
     summary.totalTargeted = candidates.length;
+
+    db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now'), total_targeted = ? WHERE id = ?`).run(summary.totalTargeted, campaignId);
+
     let recentlyMessaged = countRecentlyMessaged(db, owner);
     const defaultIntervalMs = 1000 / Math.max(1, config.throttle.messagesPerSecond);
 
