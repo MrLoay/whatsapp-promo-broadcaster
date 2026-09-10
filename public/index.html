@@ -756,17 +756,18 @@
         if (displayStatus === 'READY') statusBadgeClass = 'READY';
         else if (displayStatus === 'QR' || displayStatus === 'QR_READY') statusBadgeClass = 'QR_READY';
         else if (displayStatus === 'CONNECTING' || displayStatus === 'AUTHENTICATED') statusBadgeClass = 'CONNECTING';
+        else if (displayStatus === 'ERROR') statusBadgeClass = 'ERROR';
         else statusBadgeClass = 'DISCONNECTED';
 
         let qrHtml = '';
-        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr && !acc.error) {
+        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr) {
           qrHtml = `
             <div class="qr-container">
               <p style="font-size:12px;" class="muted">Scan with WhatsApp Linked Devices:</p>
               <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(acc.qr)}&size=220x220" alt="QR Code" />
             </div>
           `;
-        } else if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && !acc.qr && !acc.error) {
+        } else if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && !acc.qr) {
           qrHtml = `
             <div class="qr-container" style="padding: 20px 0;">
               <p style="font-size:12px;" class="muted">Generating fresh QR code...</p>
@@ -792,10 +793,10 @@
             </div>
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
               <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}', this)">Delete</button>
-              ${displayStatus !== 'DISCONNECTED' ? `
-                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">Disconnect</button>
+              ${displayStatus === 'DISCONNECTED' || displayStatus === 'ERROR' ? `
+                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}', this)">${displayStatus === 'ERROR' ? 'Retry' : 'Connect'}</button>
               ` : `
-                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}', this)">Connect</button>
+                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">Disconnect</button>
               `}
             </div>
           </div>
@@ -811,8 +812,8 @@
           body: JSON.stringify({ id, account_name: name, proxy_url: proxyUrl || undefined })
         });
       } catch (err) {
-        document.getElementById('globalError').textContent = err.message;
-        if (btn) { btn.disabled = false; btn.textContent = 'Connect'; }
+        alert(err.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
       }
     }
 

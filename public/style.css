@@ -216,6 +216,7 @@ a.link { color: var(--accent); text-decoration: none; }
   border-radius: 8px;
 }
 .badge.DISCONNECTED { background: #fee2e2; color: #7f1d1d; }
+.badge.ERROR { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
 .badge.CONNECTING { background: #fef3c7; color: #78350f; }
 .badge.QR_READY { background: #e0f2fe; color: #0369a1; }
 .badge.READY { background: #dcfce7; color: #14532d; }

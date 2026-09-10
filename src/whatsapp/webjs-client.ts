@@ -2,7 +2,7 @@ import { Client, LocalAuth, type Message } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import { config } from '../config';
 
-export type ConnectionStatus = 'idle' | 'qr' | 'authenticated' | 'ready' | 'error';
+export type ConnectionStatus = 'idle' | 'connecting' | 'qr' | 'authenticated' | 'ready' | 'error';
 
 interface Session {
   client: Client | null;
@@ -42,7 +42,7 @@ export function getConnectionState(owner: string): {
 } {
   const s = getSession(owner);
   const isReady = s.connectionStatus === 'ready';
-  const qr = (!isReady && s.latestQr && !s.lastError) ? s.latestQr : null;
+  const qr = (!isReady && s.latestQr) ? s.latestQr : null;
   const phone = s.client?.info?.wid?.user ? `+${s.client.info.wid.user}` : null;
   const pushname = s.client?.info?.pushname || null;
   return { status: s.connectionStatus, qr, error: s.lastError, phone, pushname };
@@ -141,6 +141,9 @@ function resetForRetry(owner: string): void {
 export async function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   s.lastError = null; // Clear any old error on new attempt
+  if (s.connectionStatus === 'error' || s.connectionStatus === 'idle') {
+    s.connectionStatus = 'connecting';
+  }
   if (s.readyPromise) return s.readyPromise;
 
   s.readyPromise = new Promise<Client>(async (resolve, reject) => {

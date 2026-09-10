@@ -14,11 +14,8 @@ import { config } from '../config';
  * Safe to call more than once for the same owner -- skips re-attaching if
  * this client instance already has listeners.
  */
-export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {
-  const client = await getWebJsClient(owner, proxyUrl);
-  if (client.listenerCount('message') > 0) return; // already wired up for this client instance
-
-  updateAccountStatus(db, owner, 'CONNECTING');
+function wireClientEvents(db: Database.Database, owner: string, client: any, proxyUrl?: string | null): void {
+  if (!client || client.listenerCount('message') > 0) return;
 
   client.on('qr', () => {
     updateAccountStatus(db, owner, 'QR_READY');
@@ -40,7 +37,6 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
     if (optOut) markOptedOut(db, owner, phone);
   });
 
-  // whatsapp-web.js ack levels: -1 error, 0 pending, 1 sent (server), 2 delivered (device), 3 read, 4 played.
   client.on('message_ack', (message: Message, ack: number) => {
     const wamid = message.id._serialized;
     if (ack === 2) recordDeliveryStatus(db, wamid, 'delivered');
@@ -99,13 +95,21 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
     }
   }, config.whatsapp.heartbeatIntervalMs);
 
-  // Prevent memory leaks on listener detachment
   client.on('disconnected', () => clearInterval(heartbeatInterval));
+}
 
-  // Exponential Backoff auto-connect helper
+export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {
+  updateAccountStatus(db, owner, 'CONNECTING');
+
+  try {
+    const initialClient = await getWebJsClient(owner, proxyUrl);
+    wireClientEvents(db, owner, initialClient, proxyUrl);
+  } catch {}
+
   const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
     try {
-      await ensureReady(owner, proxyUrl);
+      const client = await ensureReady(owner, proxyUrl);
+      wireClientEvents(db, owner, client, proxyUrl);
     } catch (err) {
       const errorMsg = (err as Error).message;
       updateAccountStatus(db, owner, 'DISCONNECTED');
