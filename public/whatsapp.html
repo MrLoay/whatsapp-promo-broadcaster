@@ -162,11 +162,17 @@
         else statusBadgeClass = 'DISCONNECTED';
 
         let qrHtml = '';
-        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr) {
+        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr && !acc.error) {
           qrHtml = `
             <div class="qr-container">
               <p style="font-size:12px;" class="muted">Scan with WhatsApp Linked Devices:</p>
               <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(acc.qr)}&size=220x220" alt="QR Code" />
+            </div>
+          `;
+        } else if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && !acc.qr && !acc.error) {
+          qrHtml = `
+            <div class="qr-container" style="padding: 20px 0;">
+              <p style="font-size:12px;" class="muted">Generating fresh QR code...</p>
             </div>
           `;
         }

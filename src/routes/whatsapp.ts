@@ -100,11 +100,21 @@ whatsappRouter.post('/whatsapp/disconnect', async (req, res) => {
   res.json({ disconnected: true });
 });
 
+import fs from 'fs';
+import path from 'path';
+
 whatsappRouter.post('/whatsapp/delete', async (req, res) => {
   const accountId = req.body?.id;
   if (!accountId) return res.status(400).json({ error: 'Missing account id' });
   await disconnect(accountId);
   const db = getDb();
   deleteAccount(db, accountId);
+  const safeClientId = accountId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const sessionDir = path.join(config.whatsapp.webjsSessionPath, `session-${safeClientId}`);
+  try {
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  } catch {}
   res.json({ deleted: true });
 });

@@ -73,19 +73,10 @@ if (require.main === module) {
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
     const { getAccountById } = require('./services/accounts');
     try {
-      // Start listeners for dashboard users (admin accounts)
-      const users = JSON.parse(config.dashboard.users) as { username: string }[];
-      for (const { username } of users) {
-        const account = getAccountById(db, username);
-        startWebJsListeners(db, username, account?.proxy_url);
-      }
-      
-      // Start listeners for all proxy accounts in the database
-      const allAccounts = db.prepare(`SELECT id, proxy_url FROM accounts`).all() as { id: string, proxy_url: string | null }[];
+      // Start listeners only for accounts registered in the database (e.g. proxy broadcast accounts)
+      const allAccounts = db.prepare(`SELECT id, proxy_url FROM accounts WHERE status != 'DISCONNECTED'`).all() as { id: string, proxy_url: string | null }[];
       for (const account of allAccounts) {
-        if (!users.some(u => u.username === account.id)) {
-          startWebJsListeners(db, account.id, account.proxy_url);
-        }
+        startWebJsListeners(db, account.id, account.proxy_url);
       }
     } catch (err) {
       console.error('Failed to auto-reconnect WhatsApp accounts:', (err as Error).message);

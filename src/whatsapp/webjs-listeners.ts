@@ -65,7 +65,18 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
   const heartbeatInterval = setInterval(async () => {
     try {
       if (client && client.pupPage && !client.pupPage.isClosed()) {
-        const state = await client.getState();
+        const { getConnectionState } = require('./webjs-client');
+        const s = getConnectionState(owner);
+        // Only run heartbeat check if the session is already authenticated or ready.
+        // Never query getState() on accounts waiting for a QR scan, connecting, or idle!
+        if (s.status !== 'ready' && s.status !== 'authenticated') return;
+
+        const statePromise = client.getState();
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('getState timeout (10s)')), 10000)
+        );
+        const state = await Promise.race([statePromise, timeoutPromise]);
+
         if (state === 'CONNECTED') {
           updateAccountStatus(db, owner, 'READY');
         } else if (state === 'UNPAIRED' || state === 'UNLAUNCHED') {

@@ -35,7 +35,8 @@ export function getActiveSessionCount(): number {
 
 export function getConnectionState(owner: string): { status: ConnectionStatus; qr: string | null; error: string | null } {
   const s = getSession(owner);
-  return { status: s.connectionStatus, qr: s.connectionStatus === 'qr' ? s.latestQr : null, error: s.lastError };
+  const qr = (s.connectionStatus === 'qr' && !s.lastError) ? s.latestQr : null;
+  return { status: s.connectionStatus, qr, error: s.lastError };
 }
 
 /**
@@ -57,7 +58,15 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       throw new Error(`Max active WhatsApp sessions limit (${config.whatsapp.maxConcurrentSessions}) reached. Cannot launch more Chromium processes.`);
     }
 
-    const puppeteerArgs = ['--no-sandbox', '--disable-setuid-sandbox'];
+    const puppeteerArgs = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-software-rasterizer',
+      '--disable-extensions',
+      '--js-flags=--max-old-space-size=512'
+    ];
     let localBridgeUrl: string | null = null;
 
     if (proxyUrl) {
@@ -83,7 +92,7 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
         headless: true,
         args: puppeteerArgs,
         timeout: 60000,
-        protocolTimeout: 600000
+        protocolTimeout: 120000
       },
     });
 
@@ -114,6 +123,7 @@ function resetForRetry(owner: string): void {
   }
   s.client = null;
   s.readyPromise = null;
+  s.latestQr = null; // Wipe stale QR on reset!
   if (oldClient) {
     oldClient.destroy().catch(() => {});
   }
@@ -121,6 +131,7 @@ function resetForRetry(owner: string): void {
 
 export async function ensureReady(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
+  s.lastError = null; // Clear any old error on new attempt
   if (s.readyPromise) return s.readyPromise;
 
   s.readyPromise = new Promise<Client>(async (resolve, reject) => {
@@ -129,6 +140,7 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
       c.on('qr', (qr) => {
         s.connectionStatus = 'qr';
         s.latestQr = qr;
+        s.lastError = null;
         console.log(`\n[${owner}] Scan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n`);
         qrcodeTerminal.generate(qr, { small: true });
       });
@@ -136,27 +148,32 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
       c.on('authenticated', () => {
         s.connectionStatus = 'authenticated';
         s.latestQr = null;
+        s.lastError = null;
         console.log(`[${owner}] whatsapp-web.js: authenticated, session saved for next time.`);
       });
       c.on('auth_failure', (msg) => {
         s.connectionStatus = 'error';
         s.lastError = msg;
+        s.latestQr = null;
         resetForRetry(owner);
         reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
       });
       c.on('ready', () => {
         s.connectionStatus = 'ready';
         s.latestQr = null;
+        s.lastError = null;
         console.log(`[${owner}] whatsapp-web.js: client ready.`);
         resolve(c);
       });
       c.on('disconnected', () => {
         s.connectionStatus = 'idle';
+        s.latestQr = null;
         resetForRetry(owner);
       });
       c.initialize().catch((err) => {
         s.connectionStatus = 'error';
         s.lastError = err.message;
+        s.latestQr = null;
         resetForRetry(owner);
         reject(err);
       });
