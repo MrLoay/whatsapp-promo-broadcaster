@@ -66,6 +66,8 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
         liveStatus: state.status,
         qr: state.qr,
         error: state.error,
+        phone: state.phone,
+        pushname: state.pushname,
       };
     });
 

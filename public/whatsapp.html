@@ -177,11 +177,16 @@
           `;
         }
 
+        const phoneHtml = acc.phone ? `<span style="display:inline-block; font-size:12px; font-weight:600; color:#4ade80; background:rgba(34,197,94,0.15); padding:2px 8px; border-radius:6px; margin-left:8px;">📱 ${escapeHtml(acc.phone)}${acc.pushname ? ` (${escapeHtml(acc.pushname)})` : ''}</span>` : '';
+
         return `
           <div class="account-card">
             <div>
               <div class="header">
-                <span class="title">${escapeHtml(acc.account_name || acc.id)}</span>
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                  <span class="title">${escapeHtml(acc.account_name || acc.id)}</span>
+                  ${phoneHtml}
+                </div>
                 <span class="badge ${statusBadgeClass}">${displayStatus}</span>
               </div>
               <div class="proxy-info"><strong>Proxy:</strong> ${proxyText}</div>

@@ -33,10 +33,19 @@ export function getActiveSessionCount(): number {
   return count;
 }
 
-export function getConnectionState(owner: string): { status: ConnectionStatus; qr: string | null; error: string | null } {
+export function getConnectionState(owner: string): { 
+  status: ConnectionStatus; 
+  qr: string | null; 
+  error: string | null;
+  phone: string | null;
+  pushname: string | null;
+} {
   const s = getSession(owner);
-  const qr = (s.connectionStatus === 'qr' && !s.lastError) ? s.latestQr : null;
-  return { status: s.connectionStatus, qr, error: s.lastError };
+  const isReady = s.connectionStatus === 'ready';
+  const qr = (!isReady && s.latestQr && !s.lastError) ? s.latestQr : null;
+  const phone = s.client?.info?.wid?.user ? `+${s.client.info.wid.user}` : null;
+  const pushname = s.client?.info?.pushname || null;
+  return { status: s.connectionStatus, qr, error: s.lastError, phone, pushname };
 }
 
 /**
