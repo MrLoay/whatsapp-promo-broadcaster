@@ -172,3 +172,51 @@ a.link { color: var(--accent); text-decoration: none; }
   max-height: 90vh;
   overflow-y: auto;
 }
+
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+  align-items: start;
+}
+.account-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.account-card .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.account-card .title {
+  font-weight: 600;
+  font-size: 16px;
+}
+.account-card .proxy-info {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+.qr-container {
+  text-align: center;
+  padding: 10px 0;
+}
+.qr-container img {
+  max-width: 220px;
+  width: 100%;
+  border: 4px solid white;
+  border-radius: 8px;
+}
+.badge.DISCONNECTED { background: #fee2e2; color: #7f1d1d; }
+.badge.CONNECTING { background: #fef3c7; color: #78350f; }
+.badge.QR_READY { background: #e0f2fe; color: #0369a1; }
+.badge.READY { background: #dcfce7; color: #14532d; }
+.badge.BANNED { background: #450a0a; color: #fca5a5; }

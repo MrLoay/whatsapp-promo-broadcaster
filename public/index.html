@@ -10,75 +10,243 @@
   <nav id="nav"></nav>
   <div class="mode-banner" id="mode-banner"></div>
   <main>
-    <h1 data-i18n="home.heading">Overview</h1>
-    <div class="stat-row" id="stats"></div>
+    <!-- ==================== HOME VIEW ==================== -->
+    <div id="view-home">
+      <h1 data-i18n="home.heading">Overview</h1>
+      <div class="stat-row" id="stats"></div>
 
-    <div class="card" style="margin-top:20px;">
-      <h2 data-i18n="home.send.heading">Send a message now</h2>
-      <p class="muted" data-i18n="home.send.desc">Sends to every contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
-      
-      <form id="sendNowForm">
+      <div class="card" style="margin-top:20px;">
+        <h2 data-i18n="home.send.heading">Send a message now</h2>
+        <p class="muted" data-i18n="home.send.desc">Sends to every contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
+        
+        <form id="sendNowForm">
+          <div style="margin-bottom: 16px;">
+            <label for="accountSelect">Target Sending Account / Proxy</label>
+            <select id="accountSelect" name="account" style="width: 100%; max-width: 400px;">
+              <option value="all">All Active Accounts (Round-Robin)</option>
+            </select>
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label for="delaySelect" style="font-weight: 600; display: block; margin-bottom: 4px;">Sending Speed / Delay Mode:</label>
+            <select id="delaySelect" name="delayMode" style="width: 100%; max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+              <option value="auto">Automatic (Fast - System Managed)</option>
+              <option value="old_acc">Old Account Mode (2 to 5 min delay per msg)</option>
+              <option value="moderate">Moderate Safe Mode (10 to 30 sec delay per msg)</option>
+              <option value="custom">Custom Fixed Delay (seconds)</option>
+            </select>
+          </div>
+
+          <div id="customDelayContainer" style="display: none; margin-bottom: 16px;">
+            <label for="customDelayInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Custom Delay (seconds):</label>
+            <input type="number" id="customDelayInput" name="customDelay" min="1" max="600" value="120" style="width: 100%; max-width: 200px; padding: 8px;" />
+          </div>
+
+          <div style="margin-bottom: 16px;">
+            <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Attach Image or Video (Optional):</label>
+            <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
+          </div>
+
+          <div style="margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
+            <label style="font-weight: 600;">Message Content (Multiple Variations):</label>
+            <span class="muted" style="font-size: 12px;">Reduces ban risk</span>
+          </div>
+          <div id="msgTabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
+            <button type="button" class="secondary active-tab" data-idx="0" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #2563eb; color: white;">Message 1</button>
+            <button type="button" class="secondary" id="addMsgBtn" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">+ Add</button>
+          </div>
+          <div id="msgContainers">
+            <textarea name="message_0" id="message_0" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!" style="border-top-left-radius: 0;"></textarea>
+          </div>
+          <input type="hidden" name="message" id="finalMessagePayload" />
+          <br />
+          <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
+        </form>
+        <div class="error" id="sendNowError"></div>
+        <div class="muted" id="sendNowResult" style="margin-top: 10px;"></div>
+        
+        <div id="liveProcessContainer" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+          <div id="liveProcessList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CONTACTS VIEW ==================== -->
+    <div id="view-contacts" style="display: none;">
+      <h1 data-i18n="contacts.heading">Contacts</h1>
+
+      <div class="card">
+        <h2 data-i18n="contacts.add.heading">Add one contact</h2>
+        <form class="inline" id="addForm">
+          <div>
+            <label data-i18n="contacts.add.phone">Phone number (example: +15551234567)</label>
+            <input name="phone" required />
+          </div>
+          <div>
+            <label data-i18n="contacts.add.name">Name</label>
+            <input name="name" />
+          </div>
+          <button type="submit" data-i18n="contacts.add.button">Add</button>
+        </form>
+        <div class="error" id="addError"></div>
+      </div>
+
+      <div class="card">
+        <h2 data-i18n="contacts.bulk.title">Add many contacts at once</h2>
+        <p class="muted" data-i18n="contacts.bulk.intro">Instead of adding contacts one by one, you can upload a CSV file or type/paste a list below. Put one contact on each line: phone number, name.</p>
+        <div class="card" style="background:var(--bg); margin-bottom:12px;">
+          <p class="muted" style="margin:0 0 6px;" data-i18n="contacts.bulk.exampleLabel">Example (copy this pattern):</p>
+          <code>phone,name<br />+15551234567,Alice<br />+15559876543,Bob</code>
+        </div>
         <div style="margin-bottom: 16px;">
-          <label for="accountSelect">Target Sending Account / Proxy</label>
-          <select id="accountSelect" name="account" style="width: 100%; max-width: 400px;">
-            <option value="all">All Active Accounts (Round-Robin)</option>
-          </select>
+          <label style="font-weight: 600; display: block; margin-bottom: 6px;">Upload CSV or TXT File:</label>
+          <input type="file" id="csvFileInput" accept=".csv, .txt, text/csv, text/plain" />
         </div>
+        <form id="importForm">
+          <textarea id="csvTextArea" name="csv" data-i18n-placeholder="contacts.bulk.placeholder" placeholder="phone,name"></textarea><br /><br />
+          <button type="submit" data-i18n="contacts.bulk.button">Add these contacts</button>
+        </form>
+        <div class="error" id="importError"></div>
+        <div class="muted" id="importResult"></div>
+      </div>
 
-        <div style="margin-bottom: 16px;">
-          <label for="delaySelect" style="font-weight: 600; display: block; margin-bottom: 4px;">Sending Speed / Delay Mode:</label>
-          <select id="delaySelect" name="delayMode" style="width: 100%; max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-            <option value="auto">Automatic (Fast - System Managed)</option>
-            <option value="old_acc">Old Account Mode (2 to 5 min delay per msg)</option>
-            <option value="moderate">Moderate Safe Mode (10 to 30 sec delay per msg)</option>
-            <option value="custom">Custom Fixed Delay (seconds)</option>
-          </select>
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 style="margin: 0;" data-i18n="contacts.table.heading">All contacts</h2>
+          <div style="display: flex; gap: 8px;">
+            <button id="deleteSelectedBtn" class="danger" style="display: none;">Delete Selected</button>
+            <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
+          </div>
         </div>
+        <div id="syncStatus" class="muted" style="margin-bottom: 10px;"></div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px;"><input type="checkbox" id="selectAllCheckbox" /></th>
+              <th data-i18n="contacts.table.phone">Phone</th>
+              <th data-i18n="contacts.table.name">Name</th>
+              <th data-i18n="contacts.table.status">Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="contactsBody"></tbody>
+        </table>
+      </div>
+    </div>
 
-        <div id="customDelayContainer" style="display: none; margin-bottom: 16px;">
-          <label for="customDelayInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Custom Delay (seconds):</label>
-          <input type="number" id="customDelayInput" name="customDelay" min="1" max="600" value="120" style="width: 100%; max-width: 200px; padding: 8px;" />
+    <!-- ==================== WHATSAPP ACCOUNTS VIEW ==================== -->
+    <div id="view-whatsapp" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h1 style="margin:0;">WhatsApp Accounts & Proxies</h1>
+        <div style="display: flex; gap: 8px;">
+          <button id="openBulkAddModalBtn" class="secondary">+ Bulk Add</button>
+          <button id="openAddModalBtn">+ Add Account</button>
         </div>
+      </div>
 
-        <div style="margin-bottom: 16px;">
-          <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Attach Image or Video (Optional):</label>
-          <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
-        </div>
+      <div id="needsLiveMode" style="display:none;" class="card muted">
+        Test mode (DRY_RUN) is currently on. Turn it off to connect real WhatsApp sessions with proxies.
+      </div>
 
-        <div style="margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
-          <label style="font-weight: 600;">Message Content (Multiple Variations):</label>
-          <span class="muted" style="font-size: 12px;">Reduces ban risk</span>
+      <div class="accounts-grid" id="accountsGrid"></div>
+
+      <div class="error" id="globalError" style="margin-top: 16px;"></div>
+
+      <!-- Add Account Modal -->
+      <div class="modal-backdrop" id="addModal" style="display: none;">
+        <div class="modal">
+          <h2>Add WhatsApp Account</h2>
+          <form id="addAccountForm">
+            <div style="margin-bottom: 12px;">
+              <label>Account ID / Username</label>
+              <input type="text" name="id" required placeholder="e.g. store_boutique_1" style="width:100%;" />
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label>Account Display Name</label>
+              <input type="text" name="account_name" required placeholder="e.g. Downtown Boutique" style="width:100%;" />
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label>Dedicated Proxy URL (Optional)</label>
+              <input type="text" name="proxy_url" placeholder="http://user:pass@1.2.3.4:8080 or socks5://..." style="width:100%;" />
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+              <button type="button" class="secondary" id="closeAddModalBtn">Cancel</button>
+              <button type="submit">Connect Account</button>
+            </div>
+          </form>
         </div>
-        <div id="msgTabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
-          <button type="button" class="secondary active-tab" data-idx="0" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #2563eb; color: white;">Message 1</button>
-          <button type="button" class="secondary" id="addMsgBtn" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">+ Add</button>
+      </div>
+
+      <!-- Bulk Add Modal -->
+      <div class="modal-backdrop" id="bulkAddModal" style="display: none;">
+        <div class="modal" style="max-width: 600px;">
+          <h2>Bulk Add Accounts</h2>
+          <p class="muted" style="font-size: 14px; margin-bottom: 12px;">
+            Paste a list of accounts and proxies. Format: <code>id,proxy_url</code> (one per line).<br>
+            Example:<br>
+            <code>2,http://user:pass@1.1.1.1:8080</code><br>
+            <code>3,http://user:pass@2.2.2.2:8080</code>
+          </p>
+          <form id="bulkAddForm">
+            <textarea name="bulkData" rows="10" style="width: 100%; margin-bottom: 16px; font-family: monospace; padding: 8px;" placeholder="id,proxy_url"></textarea>
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+              <button type="button" class="secondary" id="closeBulkAddModalBtn">Cancel</button>
+              <button type="submit">Add All</button>
+            </div>
+          </form>
         </div>
-        <div id="msgContainers">
-          <textarea name="message_0" id="message_0" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!" style="border-top-left-radius: 0;"></textarea>
-        </div>
-        <input type="hidden" name="message" id="finalMessagePayload" />
-        <br />
-        <button type="submit" data-i18n="home.send.button">Send to all contacts</button>
-      </form>
-      <div class="error" id="sendNowError"></div>
-      <div class="muted" id="sendNowResult" style="margin-top: 10px;"></div>
-      
-      <div id="liveProcessContainer" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
-        <div id="liveProcessList"></div>
       </div>
     </div>
   </main>
+
   <script src="i18n.js"></script>
   <script src="app.js"></script>
   <script>
+    // ==========================================
+    // SPA TAB NAVIGATION LOGIC (NO PAGE RELOAD)
+    // ==========================================
+    window.switchMainView = function(viewId) {
+      const views = ['home', 'contacts', 'whatsapp'];
+      if (!views.includes(viewId)) viewId = 'home';
+      
+      views.forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.style.display = (v === viewId ? 'block' : 'none');
+      });
+
+      document.querySelectorAll('.nav-tab').forEach(tab => {
+        if (tab.dataset.view === viewId) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+
+      sessionStorage.setItem('active_main_view', viewId);
+
+      if (viewId === 'contacts') {
+        loadContacts();
+      } else if (viewId === 'whatsapp') {
+        initWhatsAppEvents();
+      } else if (viewId === 'home') {
+        loadStats();
+        loadAccountsDropdown();
+      }
+    };
+
+    // ==========================================
+    // HOME VIEW LOGIC
+    // ==========================================
     let globalContacts = [];
     let globalCampaigns = [];
     let globalAccounts = [];
+    let globalCredits = 0;
 
     async function loadAccountsDropdown() {
       try {
         globalAccounts = await api('/accounts');
         const select = document.getElementById('accountSelect');
+        const currentVal = select.value;
         select.innerHTML = '<option value="all">All Active Accounts (Round-Robin)</option>';
         globalAccounts.forEach((acc) => {
           const opt = document.createElement('option');
@@ -86,26 +254,31 @@
           opt.textContent = `${acc.account_name || acc.id} (${acc.status})`;
           select.appendChild(opt);
         });
+        if (currentVal && [...select.options].some(o => o.value === currentVal)) {
+          select.value = currentVal;
+        }
       } catch (err) {
         console.warn('Failed to load accounts list', err);
       }
     }
 
-    let globalCredits = 0;
-
     async function loadStats() {
-      const [contacts, campaigns, creditsRes] = await Promise.all([
-        api('/contacts'), 
-        api('/campaigns'),
-        api('/credits')
-      ]);
-      globalContacts = contacts;
-      globalCampaigns = campaigns;
-      globalCredits = creditsRes.balance || 0;
-      updateMetricsDisplay();
-      
-      if (globalCampaigns.some(c => c.status === 'sending' || c.status === 'draft')) {
-        startLiveMonitoring();
+      try {
+        const [contacts, campaigns, creditsRes] = await Promise.all([
+          api('/contacts'), 
+          api('/campaigns'),
+          api('/credits')
+        ]);
+        globalContacts = contacts;
+        globalCampaigns = campaigns;
+        globalCredits = creditsRes.balance || 0;
+        updateMetricsDisplay();
+        
+        if (globalCampaigns.some(c => c.status === 'sending' || c.status === 'draft')) {
+          startLiveMonitoring();
+        }
+      } catch (e) {
+        console.warn('loadStats error', e);
       }
     }
 
@@ -166,7 +339,6 @@
         errorEl.textContent = "Please enter at least one message variation.";
         return;
       }
-      // If 1 message, just use it. If multiple, wrap in {A|B|C} spintax.
       const finalPayload = messages.length === 1 ? messages[0] : `{${messages.join('|')}}`;
       document.getElementById('finalMessagePayload').value = finalPayload;
 
@@ -194,7 +366,7 @@
         if (response.started) {
           resultEl.innerHTML = `<span style="color: #10b981; font-weight: bold;">✔ Broadcast started successfully!</span> Scroll down to monitor live progress.`;
           document.querySelectorAll('#msgContainers textarea').forEach(ta => ta.value = '');
-          saveDraft(); // clear drafts
+          saveDraft();
           startLiveMonitoring();
         }
       } catch (err) {
@@ -257,7 +429,7 @@
         }
         
         document.getElementById('liveProcessList').innerHTML = html;
-        await loadStats(); // silently update global stats too
+        await loadStats();
       } catch (e) {
         console.error('Live monitor error', e);
       }
@@ -267,7 +439,7 @@
       if (!confirm('Are you sure you want to completely stop this broadcast?')) return;
       try {
         await api('/campaigns/' + id + '/stop', { method: 'POST' });
-        pollLiveProcess(); // refresh instantly
+        pollLiveProcess();
       } catch (err) {
         alert(err.message);
       }
@@ -395,19 +567,16 @@
       if (localStorage.getItem('draft_customDelay') && form.customDelay) form.customDelay.value = localStorage.getItem('draft_customDelay');
       
       const savedCount = parseInt(localStorage.getItem('draft_msgCount') || '1');
-      // Read all saved values FIRST before any DOM manipulation
       const savedValues = [];
       for (let i = 0; i < savedCount; i++) {
         savedValues.push(localStorage.getItem(`draft_message_${i}`) || '');
       }
 
-      // Restore first message
       const firstTa = document.getElementById('message_0');
       if (firstTa && savedValues[0] !== undefined) {
         firstTa.value = savedValues[0];
       }
 
-      // Add remaining message tabs with their restored text WITHOUT triggering saveDraft
       for (let i = 1; i < savedCount; i++) {
         addMessageTab(savedValues[i]);
       }
@@ -422,13 +591,347 @@
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') saveDraft();
     });
-    // -------------------------------
 
+    // ==========================================
+    // CONTACTS VIEW LOGIC
+    // ==========================================
+    function updateDeleteSelectedBtn() {
+      const checked = document.querySelectorAll('.contactCheckbox:checked').length;
+      const btn = document.getElementById('deleteSelectedBtn');
+      if (btn) {
+        btn.style.display = checked > 0 ? 'block' : 'none';
+        btn.textContent = `Delete Selected (${checked})`;
+      }
+    }
+
+    document.getElementById('selectAllCheckbox').addEventListener('change', (e) => {
+      document.querySelectorAll('.contactCheckbox').forEach(cb => {
+        cb.checked = e.target.checked;
+      });
+      updateDeleteSelectedBtn();
+    });
+
+    document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
+      const checkboxes = document.querySelectorAll('.contactCheckbox:checked');
+      if (!confirm(`Are you sure you want to delete ${checkboxes.length} contacts?`)) return;
+      
+      const btn = document.getElementById('deleteSelectedBtn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+      
+      for (const cb of checkboxes) {
+        try {
+          await api(`/contacts/${cb.value}`, { method: 'DELETE' });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      
+      document.getElementById('selectAllCheckbox').checked = false;
+      btn.disabled = false;
+      await loadContacts();
+    });
+
+    async function loadContacts() {
+      try {
+        const contacts = await api('/contacts');
+        globalContacts = contacts;
+        document.getElementById('contactsBody').innerHTML = contacts
+          .map((c) => {
+            const isSkipped = c.opt_in_status === 'opted_out';
+            const statusLabel = isSkipped ? t('status.skipped') : t('status.messaging');
+            return `<tr>
+              <td><input type="checkbox" class="contactCheckbox" value="${c.id}" /></td>
+              <td>${escapeHtml(c.phone)}</td>
+              <td>${escapeHtml(c.name || '')}</td>
+              <td><span class="badge ${c.opt_in_status}">${statusLabel}</span></td>
+              <td><button class="danger deleteBtn" data-id="${c.id}" data-phone="${escapeHtml(c.phone)}">${t('contacts.table.delete')}</button></td>
+            </tr>`;
+          })
+          .join('');
+        
+        document.querySelectorAll('.contactCheckbox').forEach(cb => {
+          cb.addEventListener('change', updateDeleteSelectedBtn);
+        });
+        updateDeleteSelectedBtn();
+
+        document.querySelectorAll('.deleteBtn').forEach((btn) => {
+          btn.onclick = async () => {
+            if (!confirm(t('contacts.table.deleteConfirm', { phone: btn.dataset.phone }))) return;
+            try {
+              await api(`/contacts/${btn.dataset.id}`, { method: 'DELETE' });
+              await loadContacts();
+            } catch (err) {
+              alert('Error: ' + err.message);
+            }
+          };
+        });
+      } catch (err) {
+        console.warn('Failed to load contacts', err);
+      }
+    }
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errorEl = document.getElementById('addError');
+      errorEl.textContent = '';
+      try {
+        await api('/contacts', {
+          method: 'POST',
+          body: JSON.stringify({
+            phone: form.phone.value.trim(),
+            name: form.name.value.trim() || undefined,
+          }),
+        });
+        form.reset();
+        await loadContacts();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('csvFileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        document.getElementById('csvTextArea').value = event.target.result;
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById('importForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('importError');
+      const resultEl = document.getElementById('importResult');
+      errorEl.textContent = '';
+      resultEl.textContent = '';
+      try {
+        const res = await fetch('/contacts/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/csv' },
+          body: e.target.csv.value,
+        });
+        if (res.status === 401) return (window.location.href = '/login.html');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        resultEl.textContent = `Inserted: ${data.inserted}, Updated: ${data.updated}, Skipped: ${data.skipped.length}`;
+        await loadContacts();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    document.getElementById('syncWhatsappBtn').addEventListener('click', async () => {
+      const syncStatus = document.getElementById('syncStatus');
+      syncStatus.textContent = 'Syncing contacts from WhatsApp...';
+      try {
+        const res = await api('/contacts/sync', { method: 'POST' });
+        syncStatus.textContent = `Sync complete. Synced: ${res.synced}`;
+        await loadContacts();
+      } catch (err) {
+        syncStatus.textContent = 'Error: ' + err.message;
+      }
+    });
+
+    // ==========================================
+    // WHATSAPP ACCOUNTS VIEW LOGIC
+    // ==========================================
+    let eventSource = null;
+
+    function renderAccounts(states) {
+      const grid = document.getElementById('accountsGrid');
+      if (!grid) return;
+      if (!states || states.length === 0) {
+        grid.innerHTML = '<div class="card muted" style="grid-column: 1/-1;">No accounts connected yet. Click "+ Add Account" to configure one.</div>';
+        return;
+      }
+
+      grid.innerHTML = states.map((acc) => {
+        const displayStatus = acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : acc.dbStatus;
+        const proxyText = acc.proxy_url ? escapeHtml(acc.proxy_url) : 'Direct Connection (No Proxy)';
+
+        let statusBadgeClass = displayStatus;
+        if (displayStatus === 'READY') statusBadgeClass = 'READY';
+        else if (displayStatus === 'QR' || displayStatus === 'QR_READY') statusBadgeClass = 'QR_READY';
+        else if (displayStatus === 'CONNECTING' || displayStatus === 'AUTHENTICATED') statusBadgeClass = 'CONNECTING';
+        else statusBadgeClass = 'DISCONNECTED';
+
+        let qrHtml = '';
+        if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && acc.qr && !acc.error) {
+          qrHtml = `
+            <div class="qr-container">
+              <p style="font-size:12px;" class="muted">Scan with WhatsApp Linked Devices:</p>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(acc.qr)}&size=220x220" alt="QR Code" />
+            </div>
+          `;
+        } else if ((displayStatus === 'QR' || displayStatus === 'QR_READY') && !acc.qr && !acc.error) {
+          qrHtml = `
+            <div class="qr-container" style="padding: 20px 0;">
+              <p style="font-size:12px;" class="muted">Generating fresh QR code...</p>
+            </div>
+          `;
+        }
+
+        const phoneHtml = acc.phone ? `<span style="display:inline-block; font-size:12px; font-weight:600; color:#4ade80; background:rgba(34,197,94,0.15); padding:2px 8px; border-radius:6px; margin-left:8px;">📱 ${escapeHtml(acc.phone)}${acc.pushname ? ` (${escapeHtml(acc.pushname)})` : ''}</span>` : '';
+
+        return `
+          <div class="account-card">
+            <div>
+              <div class="header">
+                <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+                  <span class="title">${escapeHtml(acc.account_name || acc.id)}</span>
+                  ${phoneHtml}
+                </div>
+                <span class="badge ${statusBadgeClass}">${displayStatus}</span>
+              </div>
+              <div class="proxy-info"><strong>Proxy:</strong> ${proxyText}</div>
+              ${acc.error ? `<div class="error" style="font-size:12px; margin-bottom:8px;">${escapeHtml(acc.error)}</div>` : ''}
+              ${qrHtml}
+            </div>
+            <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
+              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}', this)">Delete</button>
+              ${displayStatus !== 'DISCONNECTED' ? `
+                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">Disconnect</button>
+              ` : `
+                <button class="secondary" onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}', this)">Connect</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function reconnectAccount(id, name, proxyUrl, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Connecting...'; }
+      try {
+        await api('/whatsapp/connect', {
+          method: 'POST',
+          body: JSON.stringify({ id, account_name: name, proxy_url: proxyUrl || undefined })
+        });
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Connect'; }
+      }
+    }
+
+    async function disconnectAccount(id, btn) {
+      if (!confirm(`Disconnect account ${id}?`)) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Disconnecting...'; }
+      try {
+        await api('/whatsapp/disconnect', {
+          method: 'POST',
+          body: JSON.stringify({ id })
+        });
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Disconnect'; }
+      }
+    }
+
+    async function deleteAccountCard(id, btn) {
+      if (!confirm(`Are you sure you want to completely delete account "${id}"?`)) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+      try {
+        await api('/whatsapp/delete', {
+          method: 'POST',
+          body: JSON.stringify({ id })
+        });
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
+        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+      }
+    }
+
+    function initWhatsAppEvents() {
+      if (eventSource) return;
+      eventSource = new EventSource('/whatsapp/events');
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          renderAccounts(data.states);
+        } catch (e) {
+          console.error(e);
+        }
+      };
+    }
+
+    // WhatsApp Modals
+    document.getElementById('openAddModalBtn').addEventListener('click', () => {
+      document.getElementById('addModal').style.display = 'flex';
+    });
+    document.getElementById('closeAddModalBtn').addEventListener('click', () => {
+      document.getElementById('addModal').style.display = 'none';
+    });
+    document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const id = form.id.value.trim();
+      const account_name = form.account_name.value.trim();
+      const proxy_url = form.proxy_url.value.trim() || undefined;
+
+      try {
+        await api('/whatsapp/connect', {
+          method: 'POST',
+          body: JSON.stringify({ id, account_name, proxy_url })
+        });
+        document.getElementById('addModal').style.display = 'none';
+        form.reset();
+      } catch (err) {
+        document.getElementById('globalError').textContent = err.message;
+      }
+    });
+
+    document.getElementById('openBulkAddModalBtn').addEventListener('click', () => {
+      document.getElementById('bulkAddModal').style.display = 'flex';
+    });
+    document.getElementById('closeBulkAddModalBtn').addEventListener('click', () => {
+      document.getElementById('bulkAddModal').style.display = 'none';
+    });
+    document.getElementById('bulkAddForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const raw = e.target.bulkData.value.trim();
+      if (!raw) return;
+
+      const lines = raw.split('\n');
+      for (const line of lines) {
+        const parts = line.split(',');
+        if (parts.length >= 2) {
+          const id = parts[0].trim();
+          const proxy_url = parts.slice(1).join(',').trim();
+          if (id && proxy_url) {
+            try {
+              await api('/whatsapp/connect', {
+                method: 'POST',
+                body: JSON.stringify({ id, account_name: `Account ${id}`, proxy_url })
+              });
+            } catch (err) {
+              console.error(`Failed to add account ${id}:`, err);
+            }
+          }
+        }
+      }
+      document.getElementById('bulkAddModal').style.display = 'none';
+      e.target.reset();
+    });
+
+    // ==========================================
+    // INITIALIZATION
+    // ==========================================
     (async () => {
-      await renderNav('index.html');
+      await renderNav('home');
       await loadAccountsDropdown();
       restoreDraft();
       await loadStats();
+      initWhatsAppEvents();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const requestedTab = urlParams.get('tab') || sessionStorage.getItem('active_main_view') || 'home';
+      if (urlParams.get('tab')) {
+        window.history.replaceState({}, '', '/');
+      }
+      window.switchMainView(requestedTab);
     })();
   </script>
 

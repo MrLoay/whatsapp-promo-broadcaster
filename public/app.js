@@ -25,9 +25,9 @@ const LANGUAGES = [
 
 async function renderNav(activePage) {
   const pages = [
-    ['index.html', 'nav.home'],
-    ['contacts.html', 'nav.contacts'],
-    ['whatsapp.html', 'nav.whatsapp'],
+    ['home', 'nav.home', 'Home'],
+    ['contacts', 'nav.contacts', 'Contacts'],
+    ['whatsapp', 'nav.whatsapp', 'WhatsApp'],
   ];
   const nav = document.getElementById('nav');
   let me = null;
@@ -47,12 +47,30 @@ async function renderNav(activePage) {
     document.documentElement.removeAttribute('data-theme');
   }
 
+  const currentTab = (activePage === 'index.html' || activePage === 'home') ? 'home'
+    : (activePage === 'contacts.html' || activePage === 'contacts') ? 'contacts'
+    : 'whatsapp';
+
   nav.innerHTML =
-    pages.map(([href, key]) => `<a href="${href}" class="${href === activePage ? 'active' : ''}" data-i18n="${key}"></a>`).join('') +
+    pages.map(([id, key, defaultText]) => 
+      `<a href="javascript:void(0)" class="nav-tab ${id === currentTab ? 'active' : ''}" data-view="${id}" data-i18n="${key}">${defaultText}</a>`
+    ).join('') +
     `<span class="spacer"></span>` +
     `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;">🌓 Theme</button>` +
     `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
     `<span class="user">${escapeHtml(me.username)}</span><button class="logout" id="logoutBtn" data-i18n="nav.logout"></button>`;
+
+  nav.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetView = tab.dataset.view;
+      if (typeof window.switchMainView === 'function') {
+        window.switchMainView(targetView);
+      } else {
+        window.location.href = `/?tab=${targetView}`;
+      }
+    });
+  });
 
   document.getElementById('themeToggleBtn').onclick = () => {
     const isCurrentlyDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
