@@ -227,6 +227,7 @@
       if (viewId === 'contacts') {
         loadContacts();
       } else if (viewId === 'whatsapp') {
+        loadWhatsAppAccounts();
         initWhatsAppEvents();
       } else if (viewId === 'home') {
         loadStats();
@@ -845,17 +846,57 @@
       }
     }
 
+    let eventSource = null;
+    let accountsPollInterval = null;
+
+    async function loadWhatsAppAccounts() {
+      try {
+        const accounts = await api('/accounts');
+        renderAccounts(accounts);
+      } catch (err) {
+        console.warn('Failed to load accounts', err);
+      }
+    }
+
     function initWhatsAppEvents() {
-      if (eventSource) return;
-      eventSource = new EventSource('/whatsapp/events');
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          renderAccounts(data.states);
-        } catch (e) {
-          console.error(e);
-        }
-      };
+      loadWhatsAppAccounts();
+
+      if (!accountsPollInterval) {
+        accountsPollInterval = setInterval(() => {
+          const currentView = sessionStorage.getItem('active_main_view');
+          if (currentView === 'whatsapp') {
+            loadWhatsAppAccounts();
+          }
+        }, 4000);
+      }
+
+      if (eventSource) {
+        if (eventSource.readyState === EventSource.OPEN) return;
+        eventSource.close();
+        eventSource = null;
+      }
+
+      try {
+        eventSource = new EventSource('/whatsapp/events');
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && data.states) {
+              renderAccounts(data.states);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        };
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+        };
+      } catch (e) {
+        console.warn('SSE not supported or failed', e);
+      }
     }
 
     // WhatsApp Modals

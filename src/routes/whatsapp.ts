@@ -13,7 +13,22 @@ whatsappRouter.use(requireAuth);
 whatsappRouter.get('/accounts', (req, res) => {
   const db = getDb();
   const accounts = listAccounts(db);
-  res.json(accounts);
+  const states = accounts.map((acc) => {
+    const state = getConnectionState(acc.id);
+    return {
+      id: acc.id,
+      account_name: acc.account_name,
+      proxy_url: acc.proxy_url,
+      status: acc.status,
+      dbStatus: acc.status,
+      liveStatus: state.status,
+      qr: state.qr,
+      error: state.error,
+      phone: state.phone,
+      pushname: state.pushname,
+    };
+  });
+  res.json(states);
 });
 
 whatsappRouter.get('/whatsapp/status', async (req, res) => {
@@ -50,8 +65,10 @@ whatsappRouter.post('/whatsapp/connect', (req, res) => {
 whatsappRouter.get('/whatsapp/events', (req, res) => {
   const username = req.session.username!;
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (res.flushHeaders) res.flushHeaders();
 
   const sendStatus = async () => {
     const db = getDb();
