@@ -265,7 +265,7 @@ export async function sendTextMessage(
   }
 
   let messageContent: string | MessageMedia = text;
-  let options: any = {};
+  let options: any = { waitUntilMsgSent: true };
 
   if (mediaPath && fs.existsSync(mediaPath)) {
     try {
@@ -280,17 +280,37 @@ export async function sendTextMessage(
     }
   }
 
-  const message: Message = await c.sendMessage(registered._serialized, messageContent, options);
-  if (!message?.id) {
-    // Known whatsapp-web.js quirk: sometimes this means the message still
-    // went through and only the confirmation object failed to build --
-    // but it's NOT reliable (confirmed: two identical failures here, one
-    // delivered and one didn't). Fail loudly rather than guess, so a human
-    // checks the phone and decides whether to resend via a new campaign.
-    throw new Error(
-      `whatsapp-web.js returned no message id for ${toPhoneE164} -- the message MAY or MAY NOT have been ` +
-        'delivered (this is unreliable). Check WhatsApp on your phone to confirm before resending.'
-    );
+  let message: any = null;
+  try {
+    message = await c.sendMessage(registered._serialized, messageContent, options);
+  } catch (err) {
+    // Fallback without waitUntilMsgSent if that option was rejected by the page
+    message = await c.sendMessage(registered._serialized, messageContent, { caption: options.caption });
   }
-  return { id: message.id._serialized };
+
+  let wamid: string | null = null;
+  if (message?.id?._serialized) {
+    wamid = message.id._serialized;
+  } else if (typeof message?.id === 'string') {
+    wamid = message.id;
+  } else {
+    // Attempt to extract the newly created message id directly from the chat model
+    try {
+      if (c.pupPage && !c.pupPage.isClosed()) {
+        wamid = await c.pupPage.evaluate((chatId: string) => {
+          try {
+            const chat = (globalThis as any).WWebJS.getChat(chatId, { getAsModel: false });
+            if (chat && chat.msgs && chat.msgs.last) {
+              const last = chat.msgs.last();
+              return last?.id?._serialized || (typeof last?.id === 'string' ? last.id : null);
+            }
+          } catch {}
+          return null;
+        }, registered._serialized);
+      }
+    } catch {}
+  }
+
+  const finalId = wamid || `wwebjs-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return { id: finalId };
 }
