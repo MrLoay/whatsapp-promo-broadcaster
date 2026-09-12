@@ -30,12 +30,8 @@ async function renderNav(activePage) {
     ['whatsapp', 'nav.whatsapp', 'WhatsApp'],
   ];
   const nav = document.getElementById('nav');
-  let me = null;
-  try {
-    me = await api('/auth/me');
-  } catch {
-    return;
-  }
+  if (!nav) return;
+
   const langOptions = LANGUAGES.map(
     ([code, label]) => `<option value="${code}" ${code === getLang() ? 'selected' : ''}>${label}</option>`
   ).join('');
@@ -51,6 +47,7 @@ async function renderNav(activePage) {
     : (activePage === 'contacts.html' || activePage === 'contacts') ? 'contacts'
     : 'whatsapp';
 
+  // Render navigation tabs immediately so they are ALWAYS visible
   nav.innerHTML =
     pages.map(([id, key, defaultText]) => 
       `<a href="javascript:void(0)" class="nav-tab ${id === currentTab ? 'active' : ''}" data-view="${id}" data-i18n="${key}">${defaultText}</a>`
@@ -58,7 +55,7 @@ async function renderNav(activePage) {
     `<span class="spacer"></span>` +
     `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;">🌓 Theme</button>` +
     `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
-    `<span class="user">${escapeHtml(me.username)}</span><button class="logout" id="logoutBtn" data-i18n="nav.logout"></button>`;
+    `<span class="user" id="navUser"></span><button class="logout" id="logoutBtn" data-i18n="nav.logout" style="display:none;"></button>`;
 
   nav.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
@@ -72,25 +69,48 @@ async function renderNav(activePage) {
     });
   });
 
-  document.getElementById('themeToggleBtn').onclick = () => {
-    const isCurrentlyDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
-      (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    const nextTheme = isCurrentlyDark ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', nextTheme);
-    localStorage.setItem('theme', nextTheme);
-  };
+  const themeBtn = document.getElementById('themeToggleBtn');
+  if (themeBtn) {
+    themeBtn.onclick = () => {
+      const isCurrentlyDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
+        (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const nextTheme = isCurrentlyDark ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', nextTheme);
+      localStorage.setItem('theme', nextTheme);
+    };
+  }
 
-  document.getElementById('logoutBtn').onclick = async () => {
-    await api('/auth/logout', { method: 'POST' });
-    window.location.href = '/login.html';
-  };
-  document.getElementById('langSelect').onchange = (e) => {
-    setLang(e.target.value);
-    window.location.reload();
-  };
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.onclick = async () => {
+      try { await api('/auth/logout', { method: 'POST' }); } catch {}
+      window.location.href = '/login.html';
+    };
+  }
+
+  const langSelect = document.getElementById('langSelect');
+  if (langSelect) {
+    langSelect.onchange = (e) => {
+      setLang(e.target.value);
+      window.location.reload();
+    };
+  }
 
   applyTranslations();
 
+  // Populate user info asynchronously without blocking the tabs
+  try {
+    const me = await api('/auth/me');
+    if (me && me.username) {
+      const userSpan = document.getElementById('navUser');
+      if (userSpan) userSpan.textContent = me.username;
+      if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    }
+  } catch (err) {
+    console.warn('Auth check in nav:', err);
+  }
+
+  // Load mode banner
   try {
     const health = await fetch('/health').then((r) => r.json());
     const banner = document.getElementById('mode-banner');

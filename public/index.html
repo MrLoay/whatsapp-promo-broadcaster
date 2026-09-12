@@ -962,11 +962,11 @@
     // INITIALIZATION
     // ==========================================
     (async () => {
-      await renderNav('home');
-      await loadAccountsDropdown();
-      restoreDraft();
-      await loadStats();
-      initWhatsAppEvents();
+      try { await renderNav('home'); } catch (e) { console.error('renderNav error', e); }
+      try { await loadAccountsDropdown(); } catch (e) { console.error('loadAccountsDropdown error', e); }
+      try { restoreDraft(); } catch (e) {}
+      try { await loadStats(); } catch (e) { console.error('loadStats error', e); }
+      try { initWhatsAppEvents(); } catch (e) {}
 
       const urlParams = new URLSearchParams(window.location.search);
       const requestedTab = urlParams.get('tab') || sessionStorage.getItem('active_main_view') || 'home';
