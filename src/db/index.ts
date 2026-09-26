@@ -107,6 +107,27 @@ function migrateToMultiTenant(db: Database.Database): void {
   }
 }
 
+function migrateUsersToDb(db: Database.Database): void {
+  // If we already have users in the DB, assume migration or initial setup is done.
+  const row = db.prepare(`SELECT COUNT(*) as count FROM users`).get() as { count: number };
+  if (row.count > 0) return;
+
+  try {
+    const envUsers = JSON.parse(config.dashboard.users) as { username: string, passwordHash: string }[];
+    const insertUser = db.prepare(`INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?, ?, ?)`);
+    const insertCredit = db.prepare(`INSERT OR IGNORE INTO user_credits (owner, balance) VALUES (?, 0)`);
+    
+    db.transaction(() => {
+      for (const u of envUsers) {
+        insertUser.run(u.username, u.passwordHash, 'admin');
+        insertCredit.run(u.username);
+      }
+    })();
+  } catch (err) {
+    console.error('Failed to migrate users to DB:', err);
+  }
+}
+
 // Safe to run only after migrateToMultiTenant() guarantees these columns exist.
 function createPostMigrationIndexes(db: Database.Database): void {
   db.exec(`
@@ -128,6 +149,7 @@ export function openDb(dbPath: string = config.db.path): Database.Database {
   db.exec(schema);
   applyColumnMigrations(db);
   migrateToMultiTenant(db);
+  migrateUsersToDb(db);
   createPostMigrationIndexes(db);
   return db;
 }

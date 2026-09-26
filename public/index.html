@@ -197,6 +197,40 @@
         </div>
       </div>
     </div>
+
+    <!-- ADMIN PANEL VIEW -->
+    <div id="view-admin" style="display: none; padding: 20px;">
+      <h2><span data-i18n="nav.admin">Admin Panel</span></h2>
+      <p class="muted">Manage customers and their credit balances.</p>
+      
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+        <h3>Create New Customer</h3>
+        <form id="createCustomerForm" style="display: flex; gap: 12px; align-items: flex-end; margin-top: 12px;">
+          <div style="flex: 1;">
+            <label>Username</label>
+            <input type="text" id="newCustomerUser" required style="width:100%;" />
+          </div>
+          <div style="flex: 1;">
+            <label>Password</label>
+            <input type="password" id="newCustomerPass" required style="width:100%;" />
+          </div>
+          <div style="flex: 1;">
+            <label>Role</label>
+            <select id="newCustomerRole" style="width:100%;">
+              <option value="customer">Customer</option>
+              <option value="admin">Super Admin</option>
+            </select>
+          </div>
+          <button type="submit">Create</button>
+        </form>
+      </div>
+
+      <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
+        <h3>Registered Users</h3>
+        <div id="usersList" style="margin-top: 16px;">Loading...</div>
+      </div>
+    </div>
+    
   </main>
 
   <script src="i18n.js"></script>
@@ -206,7 +240,7 @@
     // SPA TAB NAVIGATION LOGIC (NO PAGE RELOAD)
     // ==========================================
     window.switchMainView = function(viewId) {
-      const views = ['home', 'contacts', 'whatsapp'];
+      const views = ['home', 'contacts', 'whatsapp', 'admin'];
       if (!views.includes(viewId)) viewId = 'home';
       
       views.forEach(v => {
@@ -232,8 +266,96 @@
       } else if (viewId === 'home') {
         loadStats();
         loadAccountsDropdown();
+      } else if (viewId === 'admin') {
+        loadAdminUsers();
+        initAdminEvents();
       }
     };
+
+    // ==========================================
+    // ADMIN LOGIC
+    // ==========================================
+    async function loadAdminUsers() {
+      try {
+        const users = await api('/admin/users');
+        const list = document.getElementById('usersList');
+        if (users.length === 0) {
+          list.innerHTML = '<p class="muted">No users found.</p>';
+          return;
+        }
+        
+        let html = '<table style="width:100%; border-collapse:collapse;">';
+        html += '<tr><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Username</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Role</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Credits</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Actions</th></tr>';
+        
+        users.forEach(u => {
+          html += `<tr>
+            <td style="padding:8px; border-bottom:1px solid var(--border);">${escapeHtml(u.username)}</td>
+            <td style="padding:8px; border-bottom:1px solid var(--border);">${escapeHtml(u.role)}</td>
+            <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#10b981;">${u.credits}</td>
+            <td style="padding:8px; border-bottom:1px solid var(--border);">
+              <button onclick="addCredits('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px;">+ Credits</button>
+              <button onclick="deleteUser('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px; background:var(--danger); border:none; color:white;">Delete</button>
+            </td>
+          </tr>`;
+        });
+        html += '</table>';
+        list.innerHTML = html;
+      } catch (err) {
+        console.error('Error loading users', err);
+      }
+    }
+
+    function initAdminEvents() {
+      const form = document.getElementById('createCustomerForm');
+      if (form && !form.dataset.initialized) {
+        form.dataset.initialized = 'true';
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          try {
+            await api('/admin/users', {
+              method: 'POST',
+              body: JSON.stringify({
+                username: form.newCustomerUser.value,
+                password: form.newCustomerPass.value,
+                role: form.newCustomerRole.value
+              })
+            });
+            form.reset();
+            loadAdminUsers();
+          } catch (err) {
+            alert(err.message);
+          }
+        };
+      }
+    }
+
+    async function addCredits(username) {
+      const amountStr = prompt(`Add credits for ${username} (e.g. 500, or -100 to remove):`, '100');
+      if (!amountStr) return;
+      const amount = parseInt(amountStr, 10);
+      if (isNaN(amount)) return alert('Invalid amount');
+      
+      try {
+        await api('/admin/users/' + encodeURIComponent(username) + '/credits', {
+          method: 'POST',
+          body: JSON.stringify({ amount })
+        });
+        loadAdminUsers();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteUser(username) {
+      if (!confirm(`Are you sure you want to delete ${username}? This will also delete their credits.`)) return;
+      try {
+        await api('/admin/users/' + encodeURIComponent(username), { method: 'DELETE' });
+        loadAdminUsers();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
 
     // ==========================================
     // HOME VIEW LOGIC

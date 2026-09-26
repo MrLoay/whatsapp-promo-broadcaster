@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import QRCode from 'qrcode';
 import { config } from '../config';
-import { requireAuth } from '../auth';
+import { requireAuth, requireAdmin } from '../auth';
 import { getDb } from '../db';
 import { getConnectionState, disconnect } from '../whatsapp/webjs-client';
 import { startWebJsListeners } from '../whatsapp/webjs-listeners';
@@ -9,6 +9,7 @@ import { getAccountById, upsertAccount, listAccounts, deleteAccount } from '../s
 
 export const whatsappRouter = Router();
 whatsappRouter.use(requireAuth);
+whatsappRouter.use(requireAdmin);
 
 whatsappRouter.get('/accounts', (req, res) => {
   const db = getDb();

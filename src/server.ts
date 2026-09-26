@@ -11,6 +11,7 @@ import { whatsappRouter } from './routes/whatsapp';
 import { authRouter } from './auth';
 import { systemRouter } from './routes/system';
 import { creditsRouter } from './routes/credits';
+import { adminRouter } from './routes/admin';
 import { scheduleDbMaintenance } from './services/maintenance';
 
 export function createApp(): Express {
@@ -53,6 +54,7 @@ export function createApp(): Express {
   app.use(whatsappRouter);
   app.use(systemRouter);
   app.use(creditsRouter);
+  app.use(adminRouter);
 
   return app;
 }

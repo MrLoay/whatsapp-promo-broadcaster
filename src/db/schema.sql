@@ -88,3 +88,10 @@ CREATE TABLE IF NOT EXISTS user_credits (
   balance INTEGER NOT NULL DEFAULT 0,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  username TEXT PRIMARY KEY,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('admin', 'customer')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import os from 'os';
 import fs from 'fs';
-import { requireAuth } from '../auth';
+import { requireAuth, requireAdmin } from '../auth';
 import { getDb } from '../db';
 import { config } from '../config';
 import { listAccounts } from '../services/accounts';
@@ -9,6 +9,7 @@ import { getActiveSessionCount } from '../whatsapp/webjs-client';
 
 export const systemRouter = Router();
 systemRouter.use(requireAuth);
+systemRouter.use(requireAdmin);
 
 systemRouter.get('/system/health', (req, res) => {
   const totalMem = os.totalmem();
