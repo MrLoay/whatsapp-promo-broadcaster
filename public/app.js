@@ -117,7 +117,11 @@ async function renderNav(activePage) {
       const creditCount = document.getElementById('creditCount');
       if (creditBalance && creditCount) {
         creditCount.textContent = me.credits ?? 0;
-        creditBalance.style.display = 'inline-block';
+        if (me.role !== 'admin') {
+          creditBalance.style.display = 'inline-block';
+        } else {
+          creditBalance.style.display = 'none';
+        }
       }
     }
   } catch (err) {

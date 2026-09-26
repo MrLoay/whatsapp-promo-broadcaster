@@ -290,12 +290,17 @@ export async function sendCampaign(
       }
 
       try {
-        const balance = getCreditBalance(db, owner);
-        if (balance <= 0) {
-          throw new Error('Insufficient credits. Please top up.');
-        }
-        if (!deductCredits(db, owner, 1)) {
-          throw new Error('Failed to deduct credits.');
+        const userRow = db.prepare('SELECT role FROM users WHERE username = ?').get(owner) as { role?: string } | undefined;
+        const isAdmin = userRow?.role === 'admin';
+
+        if (!isAdmin) {
+          const balance = getCreditBalance(db, owner);
+          if (balance <= 0) {
+            throw new Error('Insufficient credits. Please top up.');
+          }
+          if (!deductCredits(db, owner, 1)) {
+            throw new Error('Failed to deduct credits.');
+          }
         }
 
         const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
