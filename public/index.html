@@ -390,7 +390,7 @@
       try {
         const campaigns = await api('/campaigns');
         const active = campaigns.filter(c => c.status === 'sending' || c.status === 'draft');
-        const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 3);
+        const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 10);
         
         const renderCampaign = (c) => `
           <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
@@ -452,17 +452,18 @@
       container.innerHTML = 'Loading logs...';
       try {
         const recipients = await api('/campaigns/' + id + '/recipients');
-        const failed = recipients.filter(r => r.status === 'failed');
-        if (failed.length === 0) {
-          container.innerHTML = '<p class="muted">No failed messages in this campaign.</p>';
+        if (recipients.length === 0) {
+          container.innerHTML = '<p class="muted">No messages in this campaign.</p>';
           return;
         }
         let html = '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
-        html += '<tr><th style="padding:4px;border-bottom:1px solid var(--border);">Phone</th><th style="padding:4px;border-bottom:1px solid var(--border);">Error Reason</th><th style="padding:4px;border-bottom:1px solid var(--border);">Time</th></tr>';
-        failed.forEach(r => {
+        html += '<tr><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Phone</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Status</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Reason/Error</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Time</th></tr>';
+        recipients.forEach(r => {
+          const statusColor = r.status === 'failed' ? 'var(--danger)' : (r.status === 'sent' || r.status === 'delivered' || r.status === 'read' ? '#10b981' : 'var(--text)');
           html += `<tr>
             <td style="padding:4px;border-bottom:1px solid var(--border);">${escapeHtml(r.phone)}</td>
-            <td style="padding:4px;border-bottom:1px solid var(--border);color:var(--danger);">${escapeHtml(r.error || 'Unknown')}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);color:${statusColor};font-weight:bold;">${escapeHtml(r.status.toUpperCase())}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);color:${r.status === 'failed' ? 'var(--danger)' : 'var(--text)'};">${escapeHtml(r.error || (r.status !== 'failed' ? 'Success' : 'Unknown'))}</td>
             <td style="padding:4px;border-bottom:1px solid var(--border);">${r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : 'N/A'}</td>
           </tr>`;
         });
