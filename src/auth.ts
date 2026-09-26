@@ -37,7 +37,15 @@ authRouter.post('/auth/logout', (req, res) => {
 authRouter.get('/auth/me', (req, res) => {
   if (!req.session.username) return res.sendStatus(401);
   
-  const balance = getCreditBalance(getDb(), req.session.username);
+  const db = getDb();
+  if (!req.session.role) {
+    const user = db.prepare('SELECT role FROM users WHERE username = ?').get(req.session.username) as { role: string } | undefined;
+    if (user) {
+      req.session.role = user.role;
+    }
+  }
+
+  const balance = getCreditBalance(db, req.session.username);
   res.json({ 
     username: req.session.username,
     role: req.session.role,
