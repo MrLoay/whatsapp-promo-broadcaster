@@ -55,7 +55,7 @@ adminRouter.post('/admin/users/:username/credits', (req, res) => {
   const db = getDb();
   try {
     // Add amount to existing balance
-    const info = db.prepare('UPDATE user_credits SET balance = balance + ?, updated_at = datetime("now") WHERE owner = ?').run(amount, targetUsername);
+    const info = db.prepare("UPDATE user_credits SET balance = balance + ?, updated_at = datetime('now') WHERE owner = ?").run(amount, targetUsername);
     if (info.changes === 0) {
       return res.status(404).json({ error: 'User credits record not found' });
     }
@@ -93,7 +93,7 @@ adminRouter.post('/admin/users/:username/cost', (req, res) => {
   
   const db = getDb();
   try {
-    const info = db.prepare('UPDATE user_credits SET cost_per_msg = ?, updated_at = datetime("now") WHERE owner = ?').run(cost_per_msg, targetUsername);
+    const info = db.prepare("UPDATE user_credits SET cost_per_msg = ?, updated_at = datetime('now') WHERE owner = ?").run(cost_per_msg, targetUsername);
     if (info.changes === 0) {
       return res.status(404).json({ error: 'User credits record not found' });
     }
