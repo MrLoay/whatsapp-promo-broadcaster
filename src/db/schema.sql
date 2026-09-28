@@ -86,6 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
 CREATE TABLE IF NOT EXISTS user_credits (
   owner TEXT PRIMARY KEY,
   balance REAL NOT NULL DEFAULT 0,
+  cost_per_msg REAL NOT NULL DEFAULT 0.13,
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

@@ -12,10 +12,14 @@ adminRouter.get('/admin/users', (req, res) => {
   const db = getDb();
   const users = db.prepare('SELECT username, role, created_at FROM users').all() as any[];
   
-  const usersWithCredits = users.map(u => ({
-    ...u,
-    credits: getCreditBalance(db, u.username)
-  }));
+  const usersWithCredits = users.map(u => {
+    const credInfo = db.prepare('SELECT balance, cost_per_msg FROM user_credits WHERE owner = ?').get(u.username) as { balance: number, cost_per_msg: number } | undefined;
+    return {
+      ...u,
+      credits: credInfo?.balance ?? 0,
+      cost_per_msg: credInfo?.cost_per_msg ?? 0.13
+    };
+  });
   
   res.json(usersWithCredits);
 });
@@ -33,7 +37,7 @@ adminRouter.post('/admin/users', (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     db.transaction(() => {
       db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run(username, hash, assignedRole);
-      db.prepare('INSERT INTO user_credits (owner, balance) VALUES (?, 0)').run(username);
+      db.prepare('INSERT INTO user_credits (owner, balance, cost_per_msg) VALUES (?, 0, 0.13)').run(username);
     })();
     res.status(201).json({ success: true, username, role: assignedRole });
   } catch (err) {
@@ -75,6 +79,25 @@ adminRouter.delete('/admin/users/:username', (req, res) => {
       db.prepare('DELETE FROM user_credits WHERE owner = ?').run(targetUsername);
     })();
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+adminRouter.post('/admin/users/:username/cost', (req, res) => {
+  const targetUsername = req.params.username;
+  const { cost_per_msg } = req.body ?? {};
+  if (typeof cost_per_msg !== 'number') {
+    return res.status(400).json({ error: 'cost_per_msg must be a number' });
+  }
+  
+  const db = getDb();
+  try {
+    const info = db.prepare('UPDATE user_credits SET cost_per_msg = ?, updated_at = datetime("now") WHERE owner = ?').run(cost_per_msg, targetUsername);
+    if (info.changes === 0) {
+      return res.status(404).json({ error: 'User credits record not found' });
+    }
+    res.json({ success: true, cost_per_msg });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }

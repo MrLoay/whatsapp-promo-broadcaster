@@ -3,7 +3,7 @@ import { config } from '../config';
 import { sendCampaignMessage } from '../whatsapp/dispatch';
 import { listOptedInContacts, type Contact } from './contacts';
 import { getTemplateById, registerTemplate, type MessageTemplate } from './templates';
-import { getCreditBalance, deductCredits } from './credits';
+import { getCreditBalance, deductCredits, getCostPerMsg } from './credits';
 
 export interface Campaign {
   id: number;
@@ -295,10 +295,11 @@ export async function sendCampaign(
 
         if (!isAdmin) {
           const balance = getCreditBalance(db, owner);
-          if (balance <= 0) {
+          const cost = getCostPerMsg(db, owner);
+          if (balance < cost) {
             throw new Error('Insufficient credits. Please top up.');
           }
-          if (!deductCredits(db, owner, 0.13)) {
+          if (!deductCredits(db, owner, cost)) {
             throw new Error('Failed to deduct credits.');
           }
         }
