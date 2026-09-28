@@ -298,7 +298,7 @@ export async function sendCampaign(
           if (balance <= 0) {
             throw new Error('Insufficient credits. Please top up.');
           }
-          if (!deductCredits(db, owner, 1)) {
+          if (!deductCredits(db, owner, 0.13)) {
             throw new Error('Failed to deduct credits.');
           }
         }

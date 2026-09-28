@@ -116,7 +116,7 @@ async function renderNav(activePage) {
       const creditBalance = document.getElementById('creditBalance');
       const creditCount = document.getElementById('creditCount');
       if (creditBalance && creditCount) {
-        creditCount.textContent = me.credits ?? 0;
+        creditCount.textContent = (me.credits !== undefined && me.credits !== null) ? Number(me.credits).toFixed(2) : '0.00';
         if (me.role !== 'admin') {
           creditBalance.style.display = 'inline-block';
         } else {
