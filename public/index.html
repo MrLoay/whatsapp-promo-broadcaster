@@ -115,6 +115,7 @@
           <h2 style="margin: 0;" data-i18n="contacts.table.heading">All contacts</h2>
           <div style="display: flex; gap: 8px;">
             <button id="deleteSelectedBtn" class="danger" style="display: none;">Delete Selected</button>
+            <button id="exportContactsBtn" style="background: #3b82f6; color: white;">Export Contacts</button>
             <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
           </div>
         </div>
@@ -846,6 +847,29 @@
         console.warn('Failed to load contacts', err);
       }
     }
+
+    document.getElementById('exportContactsBtn').addEventListener('click', () => {
+      if (!globalContacts || globalContacts.length === 0) {
+        alert("No contacts to export.");
+        return;
+      }
+      
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Phone,Name,Status\n";
+      
+      globalContacts.forEach(c => {
+        const escapeCSV = (str) => '"' + (str ? String(str).replace(/"/g, '""') : '') + '"';
+        csvContent += `${escapeCSV(c.phone)},${escapeCSV(c.name || '')},${escapeCSV(c.opt_in_status)}\n`;
+      });
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `contacts_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
 
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
