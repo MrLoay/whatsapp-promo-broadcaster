@@ -118,7 +118,7 @@ export function listCampaignsWithStats(db: Database.Database, owner: string): Ca
     .prepare(
       `SELECT c.*, t.name as template_name,
          c.total_targeted as totalTargeted,
-         SUM(CASE WHEN cr.status = 'sent' THEN 1 ELSE 0 END) as sent,
+         SUM(CASE WHEN cr.status IN ('sent', 'delivered', 'read') THEN 1 ELSE 0 END) as sent,
          SUM(CASE WHEN cr.status = 'delivered' THEN 1 ELSE 0 END) as delivered,
          SUM(CASE WHEN cr.status = 'read' THEN 1 ELSE 0 END) as read,
          SUM(CASE WHEN cr.status = 'failed' THEN 1 ELSE 0 END) as failed
