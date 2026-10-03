@@ -7,6 +7,7 @@ export interface Account {
   account_name: string | null;
   proxy_url: string | null;
   status: AccountStatus;
+  is_active: number;
   created_at: string;
   last_active: string | null;
 }
@@ -22,29 +23,31 @@ export function listAccounts(db: Database.Database): Account[] {
 export function upsertAccount(
   db: Database.Database,
   id: string,
-  data: { account_name?: string | null; proxy_url?: string | null; status?: AccountStatus; last_active?: string | null }
+  data: { account_name?: string | null; proxy_url?: string | null; status?: AccountStatus; is_active?: number; last_active?: string | null }
 ): Account {
   const existing = getAccountById(db, id);
   if (!existing) {
     db.prepare(
-      `INSERT INTO accounts (id, account_name, proxy_url, status, last_active)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO accounts (id, account_name, proxy_url, status, is_active, last_active)
+       VALUES (?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       data.account_name ?? null,
       data.proxy_url ?? null,
       data.status ?? 'DISCONNECTED',
+      data.is_active ?? 1,
       data.last_active ?? null
     );
   } else {
     const account_name = data.account_name !== undefined ? data.account_name : existing.account_name;
     const proxy_url = data.proxy_url !== undefined ? data.proxy_url : existing.proxy_url;
     const status = data.status !== undefined ? data.status : existing.status;
+    const is_active = data.is_active !== undefined ? data.is_active : existing.is_active;
     const last_active = data.last_active !== undefined ? data.last_active : existing.last_active;
 
     db.prepare(
-      `UPDATE accounts SET account_name = ?, proxy_url = ?, status = ?, last_active = ? WHERE id = ?`
-    ).run(account_name, proxy_url, status, last_active, id);
+      `UPDATE accounts SET account_name = ?, proxy_url = ?, status = ?, is_active = ?, last_active = ? WHERE id = ?`
+    ).run(account_name, proxy_url, status, is_active, last_active, id);
   }
 
   return getAccountById(db, id)!;

@@ -11,6 +11,7 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: 'templates', column: 'personalize_name', ddl: 'ALTER TABLE templates ADD COLUMN personalize_name INTEGER NOT NULL DEFAULT 0' },
   { table: 'templates', column: 'media_path', ddl: 'ALTER TABLE templates ADD COLUMN media_path TEXT' },
   { table: 'templates', column: 'media_mime_type', ddl: 'ALTER TABLE templates ADD COLUMN media_mime_type TEXT' },
+  { table: 'accounts', column: 'is_active', ddl: 'ALTER TABLE accounts ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1' },
 ];
 
 function applyColumnMigrations(db: Database.Database): void {

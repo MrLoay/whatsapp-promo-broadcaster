@@ -20,6 +20,7 @@ whatsappRouter.get('/accounts', (req, res) => {
       id: acc.id,
       account_name: acc.account_name,
       proxy_url: acc.proxy_url,
+      is_active: acc.is_active,
       status: acc.status,
       dbStatus: acc.status,
       liveStatus: state.status,
@@ -80,6 +81,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
         id: acc.id,
         account_name: acc.account_name,
         proxy_url: acc.proxy_url,
+        is_active: acc.is_active,
         dbStatus: acc.status,
         liveStatus: state.status,
         qr: state.qr,
@@ -137,4 +139,25 @@ whatsappRouter.post('/whatsapp/delete', async (req, res) => {
     }
   } catch {}
   res.json({ deleted: true });
+});
+
+whatsappRouter.post('/whatsapp/toggle', async (req, res) => {
+  const accountId = req.body?.id;
+  const isActive = req.body?.is_active;
+  if (!accountId || typeof isActive !== 'boolean') return res.status(400).json({ error: 'Missing account id or is_active boolean' });
+  
+  const db = getDb();
+  const account = getAccountById(db, accountId);
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  
+  upsertAccount(db, accountId, { is_active: isActive ? 1 : 0 });
+  
+  if (!isActive) {
+    await disconnect(accountId);
+  } else {
+    // Attempt to start listeners again if ticked
+    startWebJsListeners(db, accountId, account.proxy_url);
+  }
+  
+  res.json({ toggled: true, is_active: isActive });
 });
