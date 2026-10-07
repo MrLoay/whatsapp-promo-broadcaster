@@ -141,6 +141,19 @@ whatsappRouter.post('/whatsapp/delete', async (req, res) => {
   res.json({ deleted: true });
 });
 
+whatsappRouter.post('/whatsapp/edit-name', async (req, res) => {
+  const accountId = req.body?.id;
+  const newName = req.body?.account_name;
+  if (!accountId || !newName) return res.status(400).json({ error: 'Missing account id or name' });
+  
+  const db = getDb();
+  const account = getAccountById(db, accountId);
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  
+  upsertAccount(db, accountId, { account_name: newName });
+  res.json({ updated: true });
+});
+
 whatsappRouter.post('/whatsapp/toggle', async (req, res) => {
   const accountId = req.body?.id;
   const isActive = req.body?.is_active;
