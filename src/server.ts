@@ -77,9 +77,13 @@ if (require.main === module) {
     try {
       // Start listeners only for accounts registered in the database (e.g. proxy broadcast accounts)
       const allAccounts = db.prepare(`SELECT id, proxy_url FROM accounts WHERE status != 'DISCONNECTED' AND is_active = 1`).all() as { id: string, proxy_url: string | null }[];
-      for (const account of allAccounts) {
-        startWebJsListeners(db, account.id, account.proxy_url);
-      }
+      const launchAccounts = async () => {
+        for (const account of allAccounts) {
+          startWebJsListeners(db, account.id, account.proxy_url);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+      };
+      launchAccounts();
     } catch (err) {
       console.error('Failed to auto-reconnect WhatsApp accounts:', (err as Error).message);
     }

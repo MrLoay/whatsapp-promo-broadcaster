@@ -236,87 +236,76 @@ export async function sendCampaign(
       }
     }
 
-    let isFirst = true;
-    let accountIndex = 0;
-
-    for (const contact of candidates) {
-      // Check if user manually stopped the campaign
-      const currentStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string };
-      if (currentStatus && currentStatus.status !== 'sending') {
-        break;
-      }
-
-      if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
-        summary.throttledOut++;
-        continue;
-      }
-
-      if (!isFirst) {
-        let sleepTimeMs = defaultIntervalMs;
-        if (delayMode === 'old_acc') {
-          sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
-        } else if (delayMode === 'moderate') {
-          sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
-        } else if (delayMode === 'custom') {
-          sleepTimeMs = Math.max(1000, customDelaySec * 1000);
-        }
-        await sleep(sleepTimeMs);
-      }
-      isFirst = false;
-
-      let dispatchAccountId: string | undefined;
-      let accountValid = false;
-      
-      // Keep trying to find a valid account from the pool, or refresh the pool
-      while (validAccounts.length > 0) {
-        dispatchAccountId = validAccounts[accountIndex % validAccounts.length];
-        const s = require('../whatsapp/webjs-client').getConnectionState(dispatchAccountId);
-        if (s.status === 'ready') {
-          accountValid = true;
-          accountIndex++;
-          break;
-        } else {
-          // Account went offline mid-campaign! Remove it from rotation.
-          console.warn(`[Campaign] Account ${dispatchAccountId} went offline. Removing from rotation.`);
-          validAccounts = validAccounts.filter(a => a !== dispatchAccountId);
-        }
-      }
-
-      if (!accountValid || !dispatchAccountId) {
-        // All accounts went offline mid-campaign
-        upsertRecipient.run(campaignId, contact.id, 'failed', null, 'All proxy accounts went offline mid-campaign.', null);
-        summary.failed++;
-        break; // stop the campaign entirely
-      }
-
-      try {
-        const userRow = db.prepare('SELECT role FROM users WHERE username = ?').get(owner) as { role?: string } | undefined;
-        const isAdmin = userRow?.role === 'admin';
-
-        if (!isAdmin) {
-          const balance = getCreditBalance(db, owner);
-          const cost = getCostPerMsg(db, owner);
-          if (balance < cost) {
-            throw new Error('Insufficient credits. Please top up.');
-          }
-          if (!deductCredits(db, owner, cost)) {
-            throw new Error('Failed to deduct credits.');
-          }
-        }
-
-        const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
-        const result = await sendCampaignMessage(dispatchAccountId, contact.phone, template, variableValues);
-        upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
-        summary.sent++;
-        recentlyMessaged++;
-      } catch (err) {
-        upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
-        summary.failed++;
-        if ((err as Error).message.includes('credits')) {
-          break; // Stop campaign if out of credits
-        }
-      }
+    const numAccounts = validAccounts.length;
+    const accountBuckets = validAccounts.map(() => [] as Contact[]);
+    for (let i = 0; i < candidates.length; i++) {
+      accountBuckets[i % numAccounts].push(candidates[i]);
     }
+
+    const processBucket = async (bucket: Contact[], accountId: string) => {
+      let isFirst = true;
+      for (const contact of bucket) {
+        const currentStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string };
+        if (currentStatus && currentStatus.status !== 'sending') {
+          break;
+        }
+
+        if (recentlyMessaged >= config.throttle.tierLimitPer24h) {
+          summary.throttledOut++;
+          continue;
+        }
+
+        if (!isFirst) {
+          let sleepTimeMs = defaultIntervalMs;
+          if (delayMode === 'old_acc') {
+            sleepTimeMs = Math.floor(120000 + Math.random() * 180000);
+          } else if (delayMode === 'moderate') {
+            sleepTimeMs = Math.floor(10000 + Math.random() * 20000);
+          } else if (delayMode === 'custom') {
+            sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+          }
+          await sleep(sleepTimeMs);
+        }
+        isFirst = false;
+
+        const s = require('../whatsapp/webjs-client').getConnectionState(accountId);
+        if (s.status !== 'ready') {
+          upsertRecipient.run(campaignId, contact.id, 'failed', null, `Account ${accountId} went offline mid-campaign.`, null);
+          summary.failed++;
+          continue; // Move to next contact in bucket, maybe account will reconnect? Or just fail it.
+        }
+
+        try {
+          const userRow = db.prepare('SELECT role FROM users WHERE username = ?').get(owner) as { role?: string } | undefined;
+          const isAdmin = userRow?.role === 'admin';
+
+          if (!isAdmin) {
+            const balance = getCreditBalance(db, owner);
+            const cost = getCostPerMsg(db, owner);
+            if (balance < cost) {
+              throw new Error('Insufficient credits. Please top up.');
+            }
+            if (!deductCredits(db, owner, cost)) {
+              throw new Error('Failed to deduct credits.');
+            }
+          }
+
+          const variableValues = template.personalize_name ? [contact.name ?? ''] : fixedVariableValues;
+          const result = await sendCampaignMessage(accountId, contact.phone, template, variableValues);
+          upsertRecipient.run(campaignId, contact.id, 'sent', result.id, null, new Date().toISOString());
+          summary.sent++;
+          recentlyMessaged++;
+        } catch (err) {
+          upsertRecipient.run(campaignId, contact.id, 'failed', null, (err as Error).message, null);
+          summary.failed++;
+          if ((err as Error).message.includes('credits')) {
+            break; // Stop bucket if out of credits
+          }
+        }
+      }
+    };
+
+    await Promise.allSettled(validAccounts.map((accId, i) => processBucket(accountBuckets[i], accId)));
 
     const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
     db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
