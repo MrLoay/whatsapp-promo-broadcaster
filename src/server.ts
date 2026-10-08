@@ -89,7 +89,32 @@ if (require.main === module) {
     }
   }
 
-  app.listen(config.server.port, () => {
+  const server = app.listen(config.server.port, () => {
     console.log(`Server listening on port ${config.server.port} (DRY_RUN=${config.dryRun})`);
   });
+
+  const gracefulShutdown = async () => {
+    console.log('\n[Graceful Shutdown] Server is shutting down...');
+    if (!config.dryRun) {
+      try {
+        const { destroyAll } = require('./whatsapp/webjs-client');
+        await destroyAll();
+      } catch (err) {
+        console.error('Error during WhatsApp session teardown:', err);
+      }
+    }
+    server.close(() => {
+      console.log('Server closed.');
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.error('Could not close gracefully, forcing exit.');
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGINT', gracefulShutdown);
+  process.on('SIGTERM', gracefulShutdown);
+  process.on('SIGQUIT', gracefulShutdown);
 }

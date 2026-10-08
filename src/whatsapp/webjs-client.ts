@@ -239,6 +239,35 @@ export async function disconnect(owner: string): Promise<void> {
   }
 }
 
+/** 
+ * Safely destroys all active sessions and kills their browser processes.
+ * Essential for preventing zombie Chromium processes on server restart.
+ */
+export async function destroyAll(): Promise<void> {
+  const promises = [];
+  for (const owner of sessions.keys()) {
+    const s = sessions.get(owner);
+    if (s && s.client) {
+      console.log(`[Graceful Shutdown] Tearing down WhatsApp session for ${owner}...`);
+      promises.push(
+        Promise.resolve().then(async () => {
+          try {
+            if (s.client?.pupBrowser) {
+              await s.client.pupBrowser.close().catch(() => {});
+            }
+          } catch {}
+          try {
+            await s.client?.destroy().catch(() => {});
+          } catch {}
+          if (s.cleanup) s.cleanup();
+        })
+      );
+    }
+  }
+  await Promise.all(promises);
+  sessions.clear();
+}
+
 import fs from 'fs';
 import { MessageMedia } from 'whatsapp-web.js';
 
