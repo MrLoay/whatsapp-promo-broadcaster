@@ -127,7 +127,7 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
         headless: true,
         args: puppeteerArgs,
         timeout: 60000,
-        protocolTimeout: 120000
+        protocolTimeout: 180000
       },
       webVersionCache: {
         type: 'remote',
@@ -351,10 +351,26 @@ export async function sendTextMessage(
     }
   }
 
+  if (!c.pupPage || c.pupPage.isClosed()) {
+    throw new Error(`WhatsApp page for ${owner} is closed or unreachable.`);
+  }
+
+  // Brief check to ensure WWebJS helper module is alive
+  try {
+    const isReady = await c.pupPage.evaluate(() => typeof (globalThis as any).WWebJS !== 'undefined').catch(() => false);
+    if (!isReady) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  } catch {}
+
   let message: any = null;
   try {
     message = await c.sendMessage(registered._serialized, messageContent, options);
-  } catch (err) {
+  } catch (err: any) {
+    const errMsg = err?.message || String(err);
+    if (errMsg.includes('Execution context was destroyed') || errMsg.includes('Target closed') || errMsg.includes('Session closed')) {
+      throw new Error(`Account ${owner} session connection dropped: ${errMsg}`);
+    }
     // Fallback without waitUntilMsgSent if that option was rejected by the page
     message = await c.sendMessage(registered._serialized, messageContent, { caption: options.caption });
   }
@@ -370,7 +386,7 @@ export async function sendTextMessage(
       if (c.pupPage && !c.pupPage.isClosed()) {
         wamid = await c.pupPage.evaluate((chatId: string) => {
           try {
-            const chat = (globalThis as any).WWebJS.getChat(chatId, { getAsModel: false });
+            const chat = (globalThis as any).WWebJS?.getChat(chatId, { getAsModel: false });
             if (chat && chat.msgs && chat.msgs.last) {
               const last = chat.msgs.last();
               return last?.id?._serialized || (typeof last?.id === 'string' ? last.id : null);
