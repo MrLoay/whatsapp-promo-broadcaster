@@ -1,5 +1,6 @@
 import { Client, LocalAuth, type Message } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
+import QRCode from 'qrcode';
 import { config } from '../config';
 
 export type ConnectionStatus = 'idle' | 'connecting' | 'qr' | 'authenticated' | 'ready' | 'error';
@@ -9,6 +10,7 @@ interface Session {
   readyPromise: Promise<Client> | null;
   connectionStatus: ConnectionStatus;
   latestQr: string | null;
+  latestQrDataUrl: string | null;
   lastError: string | null;
   cleanup?: () => void;
 }
@@ -19,7 +21,7 @@ const sessions = new Map<string, Session>();
 function getSession(owner: string): Session {
   let session = sessions.get(owner);
   if (!session) {
-    session = { client: null, readyPromise: null, connectionStatus: 'idle', latestQr: null, lastError: null };
+    session = { client: null, readyPromise: null, connectionStatus: 'idle', latestQr: null, latestQrDataUrl: null, lastError: null };
     sessions.set(owner, session);
   }
   return session;
@@ -36,6 +38,7 @@ export function getActiveSessionCount(): number {
 export function getConnectionState(owner: string): { 
   status: ConnectionStatus; 
   qr: string | null; 
+  qrDataUrl: string | null;
   error: string | null;
   phone: string | null;
   pushname: string | null;
@@ -43,9 +46,10 @@ export function getConnectionState(owner: string): {
   const s = getSession(owner);
   const isReady = s.connectionStatus === 'ready';
   const qr = (!isReady && s.latestQr) ? s.latestQr : null;
+  const qrDataUrl = (!isReady && s.latestQrDataUrl) ? s.latestQrDataUrl : null;
   const phone = s.client?.info?.wid?.user ? `+${s.client.info.wid.user}` : null;
   const pushname = s.client?.info?.pushname || null;
-  return { status: s.connectionStatus, qr, error: s.lastError, phone, pushname };
+  return { status: s.connectionStatus, qr, qrDataUrl, error: s.lastError, phone, pushname };
 }
 
 /**
@@ -74,7 +78,28 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       '--disable-gpu',
       '--disable-software-rasterizer',
       '--disable-extensions',
-      '--js-flags=--max-old-space-size=512'
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-accelerated-2d-canvas',
+      '--disable-background-networking',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-breakpad',
+      '--disable-client-side-phishing-detection',
+      '--disable-component-update',
+      '--disable-default-apps',
+      '--disable-domain-reliability',
+      '--disable-hang-monitor',
+      '--disable-ipc-flooding-protection',
+      '--disable-popup-blocking',
+      '--disable-prompt-on-repost',
+      '--disable-renderer-backgrounding',
+      '--disable-sync',
+      '--force-color-profile=srgb',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-default-browser-check',
+      '--js-flags=--max-old-space-size=384'
     ];
     let localBridgeUrl: string | null = null;
 
@@ -97,6 +122,7 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
     const safeClientId = owner.replace(/[^a-zA-Z0-9_-]/g, '_');
     s.client = new Client({
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: safeClientId }),
+      qrMaxRetries: 15,
       puppeteer: {
         headless: true,
         args: puppeteerArgs,
@@ -137,6 +163,7 @@ function resetForRetry(owner: string): void {
   s.client = null;
   s.readyPromise = null;
   s.latestQr = null; // Wipe stale QR on reset!
+  s.latestQrDataUrl = null;
   if (oldClient) {
     oldClient.destroy().catch(() => {});
   }
@@ -153,10 +180,15 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
   s.readyPromise = new Promise<Client>(async (resolve, reject) => {
     try {
       const c = await getWebJsClient(owner, proxyUrl);
-      c.on('qr', (qr) => {
+      c.on('qr', async (qr) => {
         s.connectionStatus = 'qr';
         s.latestQr = qr;
         s.lastError = null;
+        try {
+          s.latestQrDataUrl = await QRCode.toDataURL(qr, { width: 240, margin: 1 });
+        } catch {
+          s.latestQrDataUrl = null;
+        }
         console.log(`\n[${owner}] Scan this QR code in WhatsApp on your phone: Settings > Linked Devices > Link a Device\n`);
         qrcodeTerminal.generate(qr, { small: true });
       });
@@ -164,6 +196,7 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
       c.on('authenticated', () => {
         s.connectionStatus = 'authenticated';
         s.latestQr = null;
+        s.latestQrDataUrl = null;
         s.lastError = null;
         console.log(`[${owner}] whatsapp-web.js: authenticated, session saved for next time.`);
       });
@@ -171,12 +204,14 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
         s.connectionStatus = 'error';
         s.lastError = msg;
         s.latestQr = null;
+        s.latestQrDataUrl = null;
         resetForRetry(owner);
         reject(new Error(`whatsapp-web.js auth failure: ${msg}`));
       });
       c.on('ready', () => {
         s.connectionStatus = 'ready';
         s.latestQr = null;
+        s.latestQrDataUrl = null;
         s.lastError = null;
         console.log(`[${owner}] whatsapp-web.js: client ready.`);
         resolve(c);
@@ -184,12 +219,14 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
       c.on('disconnected', () => {
         s.connectionStatus = 'idle';
         s.latestQr = null;
+        s.latestQrDataUrl = null;
         resetForRetry(owner);
       });
       c.initialize().catch((err) => {
         s.connectionStatus = 'error';
         s.lastError = err.message;
         s.latestQr = null;
+        s.latestQrDataUrl = null;
         resetForRetry(owner);
         reject(err);
       });
@@ -209,6 +246,7 @@ export async function disconnect(owner: string): Promise<void> {
   s.readyPromise = null;
   s.connectionStatus = 'idle';
   s.latestQr = null;
+  s.latestQrDataUrl = null;
   s.lastError = null;
   if (s.cleanup) {
     s.cleanup();

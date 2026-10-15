@@ -25,6 +25,7 @@ whatsappRouter.get('/accounts', (req, res) => {
       dbStatus: acc.status,
       liveStatus: state.status,
       qr: state.qr,
+      qrDataUrl: state.qrDataUrl,
       error: state.error,
       phone: state.phone,
       pushname: state.pushname,
@@ -38,7 +39,7 @@ whatsappRouter.get('/whatsapp/status', async (req, res) => {
   const db = getDb();
   const state = getConnectionState(username);
   const account = getAccountById(db, username);
-  const qrDataUrl = state.qr ? await QRCode.toDataURL(state.qr) : null;
+  const qrDataUrl = state.qrDataUrl || (state.qr ? await QRCode.toDataURL(state.qr) : null);
   res.json({
     status: state.status,
     qrDataUrl,
@@ -85,6 +86,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
         dbStatus: acc.status,
         liveStatus: state.status,
         qr: state.qr,
+        qrDataUrl: state.qrDataUrl,
         error: state.error,
         phone: state.phone,
         pushname: state.pushname,

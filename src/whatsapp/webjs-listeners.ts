@@ -57,45 +57,52 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
     }));
   });
 
-  // Connection Health Check / Heartbeat
-  const heartbeatInterval = setInterval(async () => {
-    try {
-      if (client && client.pupPage && !client.pupPage.isClosed()) {
-        const { getConnectionState } = require('./webjs-client');
-        const s = getConnectionState(owner);
-        // Only run heartbeat check if the session is already authenticated or ready.
-        // Never query getState() on accounts waiting for a QR scan, connecting, or idle!
-        if (s.status !== 'ready' && s.status !== 'authenticated') return;
+  // Connection Health Check / Heartbeat (with initial random jitter to avoid all accounts spiking CPU simultaneously)
+  const jitterMs = Math.floor(Math.random() * 30000);
+  let heartbeatInterval: NodeJS.Timeout | null = null;
+  const initialTimeout = setTimeout(() => {
+    heartbeatInterval = setInterval(async () => {
+      try {
+        if (client && client.pupPage && !client.pupPage.isClosed()) {
+          const { getConnectionState } = require('./webjs-client');
+          const s = getConnectionState(owner);
+          // Only run heartbeat check if the session is already authenticated or ready.
+          // Never query getState() on accounts waiting for a QR scan, connecting, or idle!
+          if (s.status !== 'ready' && s.status !== 'authenticated') return;
 
-        const statePromise = client.getState();
-        const timeoutPromise = new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error('getState timeout (10s)')), 10000)
-        );
-        const state = await Promise.race([statePromise, timeoutPromise]);
+          const statePromise = client.getState();
+          const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('getState timeout (25s)')), 25000)
+          );
+          const state = await Promise.race([statePromise, timeoutPromise]);
 
-        if (state === 'CONNECTED') {
-          updateAccountStatus(db, owner, 'READY');
-        } else if (state === 'UNPAIRED' || state === 'UNLAUNCHED') {
-          updateAccountStatus(db, owner, 'DISCONNECTED');
+          if (state === 'CONNECTED') {
+            updateAccountStatus(db, owner, 'READY');
+          } else if (state === 'UNPAIRED' || state === 'UNLAUNCHED') {
+            updateAccountStatus(db, owner, 'DISCONNECTED');
+          }
         }
+      } catch (err) {
+        const errorMsg = (err as Error).message;
+        const isProxyErr = errorMsg.includes('net::ERR_PROXY') || errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONNREFUSED');
+        const isSocketErr = errorMsg.includes('WebSocket') || errorMsg.includes('Target closed');
+        
+        console.warn(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: 'WARN',
+          category: isProxyErr ? 'PROXY_TIMEOUT' : isSocketErr ? 'SOCKET_DEAD' : 'HEARTBEAT_FAILURE',
+          owner,
+          proxyUrl: proxyUrl || null,
+          error: errorMsg
+        }));
       }
-    } catch (err) {
-      const errorMsg = (err as Error).message;
-      const isProxyErr = errorMsg.includes('net::ERR_PROXY') || errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONNREFUSED');
-      const isSocketErr = errorMsg.includes('WebSocket') || errorMsg.includes('Target closed');
-      
-      console.warn(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: 'WARN',
-        category: isProxyErr ? 'PROXY_TIMEOUT' : isSocketErr ? 'SOCKET_DEAD' : 'HEARTBEAT_FAILURE',
-        owner,
-        proxyUrl: proxyUrl || null,
-        error: errorMsg
-      }));
-    }
-  }, config.whatsapp.heartbeatIntervalMs);
+    }, Math.max(config.whatsapp.heartbeatIntervalMs, 90000));
+  }, jitterMs);
 
-  client.on('disconnected', () => clearInterval(heartbeatInterval));
+  client.on('disconnected', () => {
+    clearTimeout(initialTimeout);
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+  });
 }
 
 export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {

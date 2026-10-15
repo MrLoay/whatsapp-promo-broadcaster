@@ -221,3 +221,17 @@ a.link { color: var(--accent); text-decoration: none; }
 .badge.QR_READY { background: #e0f2fe; color: #0369a1; }
 .badge.READY { background: #dcfce7; color: #14532d; }
 .badge.BANNED { background: #450a0a; color: #fca5a5; }
+
+.qr-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(37, 99, 235, 0.2);
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: qr-spin 0.8s linear infinite;
+  margin: 12px auto 6px;
+}
+@keyframes qr-spin {
+  to { transform: rotate(360deg); }
+}
+
