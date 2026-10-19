@@ -139,11 +139,29 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
   updateAccountStatus(db, owner, 'CONNECTING');
 
   const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
+    let slotReleased = false;
     await acquireInitSlot();
+    const releaseOnce = () => {
+      if (!slotReleased) {
+        slotReleased = true;
+        releaseInitSlot();
+      }
+    };
+
     try {
+      const initialClient = await getWebJsClient(owner, proxyUrl);
+      wireClientEvents(db, owner, initialClient, proxyUrl);
+
+      // Free the slot as soon as browser is loaded and waiting for QR or ready
+      initialClient.once('qr', releaseOnce);
+      initialClient.once('authenticated', releaseOnce);
+      initialClient.once('ready', releaseOnce);
+
       const client = await ensureReady(owner, proxyUrl);
+      releaseOnce();
       wireClientEvents(db, owner, client, proxyUrl);
     } catch (err) {
+      releaseOnce();
       const errorMsg = (err as Error)?.message || String(err || 'Unknown error');
       if (attempt >= maxAttempts) {
         updateAccountStatus(db, owner, 'DISCONNECTED');
@@ -165,7 +183,7 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
         setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
       }
     } finally {
-      releaseInitSlot();
+      releaseOnce();
     }
   };
 
