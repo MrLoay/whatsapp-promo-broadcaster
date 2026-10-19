@@ -75,12 +75,23 @@ if (require.main === module) {
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
     const { getAccountById } = require('./services/accounts');
     try {
-      // Start listeners only for accounts registered in the database (e.g. proxy broadcast accounts)
-      const allAccounts = db.prepare(`SELECT id, proxy_url FROM accounts WHERE status != 'DISCONNECTED' AND is_active = 1`).all() as { id: string, proxy_url: string | null }[];
+      // Start listeners for accounts registered in the database that are active.
+      // Restore accounts that have saved session credentials on disk or were active before restart.
+      const fs = require('fs');
+      const activeAccounts = db.prepare(`SELECT id, proxy_url, status FROM accounts WHERE is_active = 1`).all() as { id: string, proxy_url: string | null, status: string }[];
+      
+      const accountsToLaunch = activeAccounts.filter(acc => {
+        const safeClientId = acc.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const sessionPath = path.join(config.whatsapp.webjsSessionPath, `session-${safeClientId}`);
+        return fs.existsSync(sessionPath) || acc.status !== 'DISCONNECTED';
+      });
+
+      console.log(`[Auto-Reconnect] Identified ${accountsToLaunch.length} active WhatsApp accounts to restore. Launching sequentially...`);
+
       const launchAccounts = async () => {
-        for (const account of allAccounts) {
+        for (const account of accountsToLaunch) {
           startWebJsListeners(db, account.id, account.proxy_url);
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          await new Promise(resolve => setTimeout(resolve, 4000));
         }
       };
       launchAccounts();

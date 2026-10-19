@@ -19,7 +19,7 @@ export const config = {
     // The official Meta Cloud API integration will come back once a WABA is
     // approved -- see SETUP_META.md.
     webjsSessionPath: process.env.WHATSAPP_WEBJS_SESSION_PATH ?? path.join(process.cwd(), 'data', 'wwebjs_auth'),
-    maxConcurrentSessions: intFromEnv(process.env.MAX_CONCURRENT_SESSIONS, 10),
+    maxConcurrentSessions: intFromEnv(process.env.MAX_CONCURRENT_SESSIONS, 50),
     heartbeatIntervalMs: intFromEnv(process.env.HEARTBEAT_INTERVAL_MS, 60000),
   },
 

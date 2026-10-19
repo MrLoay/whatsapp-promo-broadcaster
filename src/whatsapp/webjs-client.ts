@@ -99,7 +99,15 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       '--metrics-recording-only',
       '--mute-audio',
       '--no-default-browser-check',
-      '--js-flags=--max-old-space-size=384'
+      '--js-flags=--max-old-space-size=128',
+      '--renderer-process-limit=1',
+      '--disable-site-isolation-trials',
+      '--disable-features=IsolateOrigins,site-per-process,AudioServiceOutOfProcess,Translate,AcceptCHFrame,MediaRouter,OptimizationHints,ProcessPerSiteUpToMainFrameThreshold,IsolateSandboxedIframes',
+      '--disk-cache-size=10485760',
+      '--media-cache-size=10485760',
+      '--disable-audio-output',
+      '--window-size=800,600',
+      '--disable-notifications'
     ];
     let localBridgeUrl: string | null = null;
 

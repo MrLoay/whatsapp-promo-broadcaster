@@ -83,9 +83,13 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
           }
         }
       } catch (err) {
-        const errorMsg = (err as Error).message;
+        const errorMsg = (err as Error)?.message || String(err || 'Unknown error');
+        if (errorMsg.includes('detached Frame') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('timeout')) {
+          // Tab is busy or recovering; ignore transient detached frame
+          return;
+        }
         const isProxyErr = errorMsg.includes('net::ERR_PROXY') || errorMsg.includes('ETIMEDOUT') || errorMsg.includes('ECONNREFUSED');
-        const isSocketErr = errorMsg.includes('WebSocket') || errorMsg.includes('Target closed');
+        const isSocketErr = errorMsg.includes('WebSocket');
         
         console.warn(JSON.stringify({
           timestamp: new Date().toISOString(),
@@ -118,8 +122,10 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       const client = await ensureReady(owner, proxyUrl);
       wireClientEvents(db, owner, client, proxyUrl);
     } catch (err) {
-      const errorMsg = (err as Error).message;
-      updateAccountStatus(db, owner, 'DISCONNECTED');
+      const errorMsg = (err as Error)?.message || String(err || 'Unknown error');
+      if (attempt >= maxAttempts) {
+        updateAccountStatus(db, owner, 'DISCONNECTED');
+      }
       
       console.error(JSON.stringify({
         timestamp: new Date().toISOString(),
@@ -133,7 +139,7 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       }));
 
       if (attempt < maxAttempts) {
-        const delayMs = Math.pow(2, attempt) * 1000;
+        const delayMs = Math.min(Math.pow(2, attempt) * 2000, 30000);
         setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
       }
     }

@@ -95,7 +95,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
 
     const userState = getConnectionState(username);
     const userAccount = getAccountById(db, username);
-    const qrDataUrl = userState.qr ? await QRCode.toDataURL(userState.qr) : null;
+    const qrDataUrl = userState.qrDataUrl || (userState.qr ? await QRCode.toDataURL(userState.qr) : null);
 
     const payload = JSON.stringify({
       accounts,
@@ -109,7 +109,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
   };
 
   sendStatus();
-  const interval = setInterval(sendStatus, 3000);
+  const interval = setInterval(sendStatus, 5000);
 
   req.on('close', () => {
     clearInterval(interval);

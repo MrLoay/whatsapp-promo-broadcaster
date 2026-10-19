@@ -1132,10 +1132,10 @@
       if (!accountsPollInterval) {
         accountsPollInterval = setInterval(() => {
           const currentView = sessionStorage.getItem('active_main_view');
-          if (currentView === 'whatsapp') {
+          if (currentView === 'whatsapp' && (!eventSource || eventSource.readyState !== EventSource.OPEN)) {
             loadWhatsAppAccounts();
           }
-        }, 4000);
+        }, 8000);
       }
 
       if (eventSource) {
