@@ -109,15 +109,37 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
   });
 }
 
+// Concurrency gate: at most 2 Chromium instances initialize concurrently to protect CPU & memory
+const MAX_CONCURRENT_INITIALIZATIONS = 2;
+let activeInitializations = 0;
+const launchQueue: Array<() => void> = [];
+
+function acquireInitSlot(): Promise<void> {
+  if (activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
+    activeInitializations++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    launchQueue.push(() => {
+      activeInitializations++;
+      resolve();
+    });
+  });
+}
+
+function releaseInitSlot(): void {
+  activeInitializations--;
+  if (launchQueue.length > 0 && activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
+    const next = launchQueue.shift();
+    if (next) next();
+  }
+}
+
 export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {
   updateAccountStatus(db, owner, 'CONNECTING');
 
-  try {
-    const initialClient = await getWebJsClient(owner, proxyUrl);
-    wireClientEvents(db, owner, initialClient, proxyUrl);
-  } catch {}
-
   const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
+    await acquireInitSlot();
     try {
       const client = await ensureReady(owner, proxyUrl);
       wireClientEvents(db, owner, client, proxyUrl);
@@ -142,6 +164,8 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
         const delayMs = Math.min(Math.pow(2, attempt) * 2000, 30000);
         setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
       }
+    } finally {
+      releaseInitSlot();
     }
   };
 
