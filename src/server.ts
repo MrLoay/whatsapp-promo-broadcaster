@@ -82,8 +82,8 @@ if (require.main === module) {
       
       const accountsToLaunch = activeAccounts.filter(acc => {
         const safeClientId = acc.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const sessionPath = path.join(config.whatsapp.webjsSessionPath, `session-${safeClientId}`);
-        return fs.existsSync(sessionPath) || acc.status !== 'DISCONNECTED';
+        const sessionDbPath = path.join(config.whatsapp.webjsSessionPath, `session-${safeClientId}`, 'Default', 'IndexedDB', 'https_web.whatsapp.com_0.indexeddb.leveldb');
+        return fs.existsSync(sessionDbPath);
       });
 
       console.log(`[Auto-Reconnect] Identified ${accountsToLaunch.length} active WhatsApp accounts to restore. Launching sequentially...`);

@@ -104,7 +104,9 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       '--media-cache-size=10485760',
       '--disable-audio-output',
       '--window-size=800,600',
-      '--disable-notifications'
+      '--disable-notifications',
+      '--password-store=basic',
+      '--use-mock-keychain'
     ];
     let localBridgeUrl: string | null = null;
 
@@ -128,10 +130,11 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
     s.client = new Client({
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: safeClientId }),
       qrMaxRetries: 15,
+      authTimeoutMs: 90000,
       puppeteer: {
         headless: true,
         args: puppeteerArgs,
-        timeout: 60000,
+        timeout: 90000,
         protocolTimeout: 180000
       },
       webVersionCache: {
