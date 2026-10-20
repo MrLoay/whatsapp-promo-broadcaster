@@ -113,8 +113,8 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
   });
 }
 
-// Concurrency gate: at most 2 Chromium instances initialize concurrently to protect CPU & memory
-const MAX_CONCURRENT_INITIALIZATIONS = 2;
+// Concurrency gate: at most 3 Chromium instances initialize concurrently to protect CPU & memory
+const MAX_CONCURRENT_INITIALIZATIONS = 3;
 let activeInitializations = 0;
 const launchQueue: Array<() => void> = [];
 
@@ -132,8 +132,8 @@ function acquireInitSlot(): Promise<void> {
 }
 
 function releaseInitSlot(): void {
-  activeInitializations--;
-  if (launchQueue.length > 0 && activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
+  activeInitializations = Math.max(0, activeInitializations - 1);
+  while (launchQueue.length > 0 && activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
     const next = launchQueue.shift();
     if (next) next();
   }
@@ -156,12 +156,15 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       const initialClient = await getWebJsClient(owner, proxyUrl);
       wireClientEvents(db, owner, initialClient, proxyUrl);
 
-      // Free the slot as soon as browser is loaded and waiting for QR or ready
-      initialClient.once('qr', releaseOnce);
-      initialClient.once('authenticated', releaseOnce);
-      initialClient.once('ready', releaseOnce);
+      // Free the slot as soon as browser is loaded and waiting for QR or ready,
+      // or after 15 seconds max so a stalled proxy never starves other accounts.
+      const slotTimer = setTimeout(releaseOnce, 15000);
+      initialClient.once('qr', () => { clearTimeout(slotTimer); releaseOnce(); });
+      initialClient.once('authenticated', () => { clearTimeout(slotTimer); releaseOnce(); });
+      initialClient.once('ready', () => { clearTimeout(slotTimer); releaseOnce(); });
 
       const client = await ensureReady(owner, proxyUrl);
+      clearTimeout(slotTimer);
       releaseOnce();
       wireClientEvents(db, owner, client, proxyUrl);
     } catch (err) {
