@@ -75,8 +75,9 @@ if (require.main === module) {
     const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
     const { getAccountById } = require('./services/accounts');
     try {
-      // Start listeners for accounts registered in the database that are active.
-      // Restore accounts that have saved session credentials on disk or were active before restart.
+      // Reset any stale READY/CONNECTING statuses on boot so SQLite matches in-memory state
+      db.prepare(`UPDATE accounts SET status = 'DISCONNECTED' WHERE status IN ('READY', 'CONNECTING')`).run();
+
       const fs = require('fs');
       const activeAccounts = db.prepare(`SELECT id, proxy_url, status FROM accounts WHERE is_active = 1`).all() as { id: string, proxy_url: string | null, status: string }[];
       

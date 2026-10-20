@@ -88,7 +88,7 @@ campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, 
   try {
     const delayNum = customDelay ? Number(customDelay) : undefined;
     const campaign = await sendNow(getDb(), req.session.username!, message, delayMode, delayNum, mediaPath, mimeType, accountId);
-    res.json({ started: true, campaign });
+    res.json({ started: true, campaign, ...campaign });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
   }

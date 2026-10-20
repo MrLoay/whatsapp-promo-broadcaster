@@ -391,13 +391,14 @@
       try {
         globalAccounts = await api('/accounts');
         const select = document.getElementById('accountSelect');
-        const currentVal = select.value;
-        select.innerHTML = '<option value="all">All Active Accounts (Round-Robin)</option>';
+        const readyCount = globalAccounts.filter(a => a.is_active && a.liveStatus === 'ready').length;
+        select.innerHTML = `<option value="all">All Ready Accounts (${readyCount} ready)</option>`;
         globalAccounts.forEach((acc) => {
           if (!acc.is_active) return;
+          const statusText = acc.liveStatus === 'ready' ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
           const opt = document.createElement('option');
           opt.value = acc.id;
-          opt.textContent = `${acc.account_name || acc.id} (${acc.status})`;
+          opt.textContent = `${acc.account_name || acc.id} (${statusText})`;
           select.appendChild(opt);
         });
         if (currentVal && [...select.options].some(o => o.value === currentVal)) {
@@ -969,7 +970,13 @@
 
       grid.innerHTML = states.map((acc) => {
         const isConnecting = connectingAccountIds.has(acc.id);
-        let displayStatus = isConnecting ? 'CONNECTING' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : acc.dbStatus);
+        let displayStatus = isConnecting
+          ? 'CONNECTING'
+          : (acc.liveStatus === 'ready'
+              ? 'READY'
+              : (acc.liveStatus && acc.liveStatus !== 'idle'
+                  ? acc.liveStatus.toUpperCase()
+                  : (acc.dbStatus === 'READY' ? 'DISCONNECTED' : acc.dbStatus)));
         const proxyText = acc.proxy_url ? escapeHtml(acc.proxy_url) : 'Direct Connection (No Proxy)';
 
         let statusBadgeClass = displayStatus;

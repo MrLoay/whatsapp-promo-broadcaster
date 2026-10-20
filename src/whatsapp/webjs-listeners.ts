@@ -84,7 +84,11 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
         }
       } catch (err) {
         const errorMsg = (err as Error)?.message || String(err || 'Unknown error');
-        if (errorMsg.includes('detached Frame') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('timeout')) {
+        if (errorMsg.includes('Target closed') || errorMsg.includes('Session closed')) {
+          updateAccountStatus(db, owner, 'DISCONNECTED');
+          return;
+        }
+        if (errorMsg.includes('detached Frame') || errorMsg.includes('timeout')) {
           // Tab is busy or recovering; ignore transient detached frame
           return;
         }

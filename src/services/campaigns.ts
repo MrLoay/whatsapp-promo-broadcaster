@@ -1,9 +1,11 @@
 import type Database from 'better-sqlite3';
 import { config } from '../config';
 import { sendCampaignMessage } from '../whatsapp/dispatch';
+import { getConnectionState } from '../whatsapp/webjs-client';
 import { listOptedInContacts, type Contact } from './contacts';
 import { getTemplateById, registerTemplate, type MessageTemplate } from './templates';
 import { getCreditBalance, deductCredits, getCostPerMsg } from './credits';
+import { updateAccountStatus } from './accounts';
 
 export interface Campaign {
   id: number;
@@ -53,9 +55,9 @@ export function createCampaign(
  * in automatically at send time.
  */
 export function createQuickCampaign(
-  db: Database.Database, 
-  owner: string, 
-  name: string, 
+  db: Database.Database,
+  owner: string,
+  name: string,
   message: string,
   mediaPath?: string,
   mediaMimeType?: string
@@ -93,10 +95,15 @@ export async function sendNow(
   }
 
   const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage, mediaPath, mediaMimeType);
-  
+
+  if (config.dryRun) {
+    const summary = await sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId);
+    return { ...campaign, ...summary };
+  }
+
   // Kick off campaign dispatch in the background so the UI doesn't hang
   sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId).catch(console.error);
-  
+
   return campaign;
 }
 
@@ -196,7 +203,7 @@ export async function sendCampaign(
   const fixedVariableValues: string[] = JSON.parse(campaign.variable_values ?? '[]');
 
   const summary: SendSummary = { campaignId, totalTargeted: 0, sent: 0, failed: 0, throttledOut: 0 };
-  
+
   try {
     const alreadyDone = new Set(
       (
@@ -207,7 +214,7 @@ export async function sendCampaign(
     );
 
     const candidates: Contact[] = listOptedInContacts(db, owner).filter((c) => !alreadyDone.has(c.id));
-    summary.totalTargeted = candidates.length + alreadyDone.size;
+    summary.totalTargeted = candidates.length;
 
     // Pre-insert all candidate contacts into campaign_recipients with status 'queued'
     const insertRecipient = db.prepare(
@@ -224,45 +231,57 @@ export async function sendCampaign(
     });
     insertMany(candidates);
 
+    const allTargetedCount = candidates.length + alreadyDone.size;
     db.prepare(`UPDATE campaigns SET status = 'sending', started_at = datetime('now'), total_targeted = ? WHERE id = ?`)
-      .run(summary.totalTargeted, campaignId);
+      .run(allTargetedCount, campaignId);
 
     // Fetch active proxy accounts
-    const accounts = db.prepare(`SELECT id FROM accounts WHERE status = 'READY' AND is_active = 1`).all() as { id: string }[];
-    let validAccounts = accounts.map(a => a.id);
-    if (accountId && accountId !== 'all') {
-      validAccounts = [accountId];
-    }
-    if (validAccounts.length === 0) {
-      const s = require('../whatsapp/webjs-client').getConnectionState(owner);
-      if (s.status === 'ready') {
-        validAccounts = [owner]; // fallback to master ONLY if it is actually ready
-      } else {
-        throw new Error(`No proxy accounts are READY, and the master account is also not ready. Please wait for them to connect.`);
+    let validAccounts: string[] = [];
+    if (config.dryRun) {
+      validAccounts = [owner];
+    } else {
+      const accounts = db.prepare(`SELECT id FROM accounts WHERE status = 'READY' AND is_active = 1`).all() as { id: string }[];
+      let candidateAccounts = accounts.map(a => a.id);
+      if (accountId && accountId !== 'all') {
+        candidateAccounts = [accountId];
+      }
+
+      // Filter only accounts whose live in-memory session is ACTUALLY 'ready'
+      validAccounts = candidateAccounts.filter(accId => {
+        const s = getConnectionState(accId);
+        return s.status === 'ready';
+      });
+
+      if (validAccounts.length === 0) {
+        const s = getConnectionState(owner);
+        if (s.status === 'ready') {
+          validAccounts = [owner]; // fallback to master ONLY if it is actually ready
+        } else {
+          throw new Error(`None of the selected WhatsApp accounts are currently connected and ready. Please make sure your accounts show READY before starting a broadcast.`);
+        }
       }
     }
 
     const userRow = db.prepare('SELECT role FROM users WHERE username = ?').get(owner) as { role?: string } | undefined;
     const isAdmin = userRow?.role === 'admin';
 
-    // Atomic function to claim the next 'queued' contact for any ready worker
-    const claimNextContact = (): { id: number; contact_id: number; phone: string; name: string | null } | null => {
-      return db.transaction(() => {
-        const row = db.prepare(
-          `SELECT cr.id, cr.contact_id, ct.phone, ct.name
-           FROM campaign_recipients cr
-           JOIN contacts ct ON ct.id = cr.contact_id
-           WHERE cr.campaign_id = ? AND cr.status = 'queued'
-           ORDER BY cr.id ASC
-           LIMIT 1`
-        ).get(campaignId) as { id: number; contact_id: number; phone: string; name: string | null } | undefined;
+    // In-memory queue of recipient tasks for thread-safe claiming across concurrent workers
+    const recipientTasks = db.prepare(
+      `SELECT cr.id, cr.contact_id, ct.phone, ct.name
+       FROM campaign_recipients cr
+       JOIN contacts ct ON ct.id = cr.contact_id
+       WHERE cr.campaign_id = ? AND cr.status = 'queued'
+       ORDER BY cr.id ASC`
+    ).all(campaignId) as { id: number; contact_id: number; phone: string; name: string | null }[];
 
-        if (row) {
-          db.prepare(`UPDATE campaign_recipients SET status = 'sending' WHERE id = ?`).run(row.id);
-          return row;
-        }
-        return null;
-      })();
+    const taskQueue = [...recipientTasks];
+
+    const claimNextContact = (): { id: number; contact_id: number; phone: string; name: string | null } | null => {
+      return taskQueue.shift() ?? null;
+    };
+
+    const returnContactToQueue = (task: { id: number; contact_id: number; phone: string; name: string | null }) => {
+      taskQueue.unshift(task);
     };
 
     // Shared worker loop for each active account
@@ -277,10 +296,22 @@ export async function sendCampaign(
         }
 
         // Check if this account is still ready
-        const s = require('../whatsapp/webjs-client').getConnectionState(accId);
-        if (s.status !== 'ready') {
-          console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Worker exiting gracefully.`);
-          break; // Stop this worker; surviving accounts will continue processing remaining contacts
+        if (!config.dryRun) {
+          let s = getConnectionState(accId);
+          if (s.status !== 'ready') {
+            if (s.status === 'connecting' || s.status === 'authenticated') {
+              for (let wait = 0; wait < 3; wait++) {
+                await sleep(2000);
+                s = getConnectionState(accId);
+                if (s.status === 'ready') break;
+              }
+            }
+          }
+          if (s.status !== 'ready') {
+            console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Worker exiting gracefully.`);
+            updateAccountStatus(db, accId, 'DISCONNECTED');
+            break; // Stop this worker; surviving accounts will continue processing remaining contacts
+          }
         }
 
         // Claim the next contact from the shared queue
@@ -291,7 +322,7 @@ export async function sendCampaign(
         }
 
         // Safe per-account delay to prevent WhatsApp anti-spam bans
-        if (!isFirst) {
+        if (!isFirst && !config.dryRun) {
           let sleepTimeMs = 15000;
           if (delayMode === 'old_acc') {
             sleepTimeMs = Math.floor(120000 + Math.random() * 180000); // 2 to 5 minutes
@@ -310,7 +341,7 @@ export async function sendCampaign(
 
         try {
           // Verify credit balance
-          if (!isAdmin) {
+          if (!isAdmin && !config.dryRun) {
             const balance = getCreditBalance(db, owner);
             const cost = getCostPerMsg(db, owner);
             if (balance < cost) {
@@ -339,16 +370,17 @@ export async function sendCampaign(
             summary.failed++;
           } else if (isAccountIssue) {
             // Account dropped or hit CDP timeout -- DO NOT FAIL CONTACT!
-            // Return task to 'queued' so other healthy accounts will deliver it seamlessly!
+            // Return task to queue so other healthy accounts will deliver it seamlessly!
             console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue for other accounts.`);
-            db.prepare(`UPDATE campaign_recipients SET status = 'queued', error = ? WHERE id = ?`).run(`Account ${accId} dropped: ${errorMsg}`, task.id);
+            returnContactToQueue(task);
+            updateAccountStatus(db, accId, 'DISCONNECTED');
             break; // Stop this worker
           } else {
             if (errorMsg.includes('credits')) {
-              db.prepare(`UPDATE campaign_recipients SET status = 'queued', error = ? WHERE id = ?`).run(errorMsg, task.id);
+              returnContactToQueue(task);
               break; // Stop worker on credit exhaustion
             }
-            // General failure: re-queue once to give another account a chance
+            // General failure: fail permanently
             db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ? WHERE id = ?`).run(errorMsg, task.id);
             summary.failed++;
           }
@@ -359,21 +391,24 @@ export async function sendCampaign(
     // Run dynamic workers across all valid accounts in parallel
     await Promise.allSettled(validAccounts.map((accId) => runAccountWorker(accId)));
 
-    // Handle any stray contacts left in 'queued' or 'sending' (e.g. if ALL accounts went offline)
+    // Handle any stray contacts left in 'queued' (e.g. if ALL accounts went offline or stopped)
     const remaining = db.prepare(
-      `SELECT count(*) as count FROM campaign_recipients WHERE campaign_id = ? AND status IN ('queued', 'sending')`
+      `SELECT count(*) as count FROM campaign_recipients WHERE campaign_id = ? AND status = 'queued'`
     ).get(campaignId) as { count: number };
 
     if (remaining.count > 0) {
       db.prepare(
         `UPDATE campaign_recipients SET status = 'failed', error = 'All blasting accounts went offline before this message could be sent.'
-         WHERE campaign_id = ? AND status IN ('queued', 'sending')`
+         WHERE campaign_id = ? AND status = 'queued'`
       ).run(campaignId);
       summary.failed += remaining.count;
     }
 
-    const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
-    db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
+    const currentCampaignStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+    if (currentCampaignStatus && currentCampaignStatus.status === 'sending') {
+      const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
+      db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
+    }
   } catch (err) {
     console.error('Fatal error in sendCampaign:', err);
     db.prepare(`UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ?`).run(campaignId);

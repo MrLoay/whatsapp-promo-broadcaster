@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   template_id INTEGER NOT NULL REFERENCES templates(id),
   variable_values TEXT,                 -- JSON array of strings, applied to every recipient
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sending', 'completed', 'failed')),
+  total_targeted INTEGER DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,
   completed_at TEXT
