@@ -107,7 +107,10 @@ export async function sendNow(
   return campaign;
 }
 
-export function getCampaignById(db: Database.Database, owner: string, id: number): Campaign | undefined {
+export function getCampaignById(db: Database.Database, owner: string, id: number, isAdmin: boolean = false): Campaign | undefined {
+  if (isAdmin) {
+    return db.prepare('SELECT * FROM campaigns WHERE id = ?').get(id) as Campaign | undefined;
+  }
   return db.prepare('SELECT * FROM campaigns WHERE id = ? AND owner = ?').get(id, owner) as Campaign | undefined;
 }
 
@@ -152,17 +155,24 @@ export interface CampaignRecipientDetail {
   read_at: string | null;
 }
 
-export function getCampaignRecipients(db: Database.Database, owner: string, campaignId: number): CampaignRecipientDetail[] {
+export function getCampaignRecipients(
+  db: Database.Database,
+  owner: string,
+  campaignId: number,
+  isAdmin: boolean = false
+): CampaignRecipientDetail[] {
+  const whereClause = isAdmin ? 'cr.campaign_id = ?' : 'cr.campaign_id = ? AND c.owner = ?';
+  const params = isAdmin ? [campaignId] : [campaignId, owner];
   return db
     .prepare(
-      `SELECT cr.id, cr.contact_id, ct.phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at
+      `SELECT cr.id, cr.contact_id, COALESCE(ct.phone, 'Unknown') as phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at
        FROM campaign_recipients cr
-       JOIN contacts ct ON ct.id = cr.contact_id
+       LEFT JOIN contacts ct ON ct.id = cr.contact_id
        JOIN campaigns c ON c.id = cr.campaign_id
-       WHERE cr.campaign_id = ? AND c.owner = ?
+       WHERE ${whereClause}
        ORDER BY cr.id`
     )
-    .all(campaignId, owner) as CampaignRecipientDetail[];
+    .all(...params) as CampaignRecipientDetail[];
 }
 
 function countRecentlyMessaged(db: Database.Database, owner: string): number {
@@ -432,7 +442,10 @@ export function recordDeliveryStatus(
   return info.changes > 0;
 }
 
-export function stopCampaign(db: Database.Database, owner: string, id: number): boolean {
-  const info = db.prepare(`UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ? AND owner = ? AND status = 'sending'`).run(id, owner);
+export function stopCampaign(db: Database.Database, owner: string, id: number, isAdmin: boolean = false): boolean {
+  const sql = isAdmin
+    ? `UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ? AND status = 'sending'`
+    : `UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ? AND owner = ? AND status = 'sending'`;
+  const info = isAdmin ? db.prepare(sql).run(id) : db.prepare(sql).run(id, owner);
   return info.changes > 0;
 }

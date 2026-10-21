@@ -8,29 +8,77 @@ import {
   sendNow,
   listCampaignsWithStats,
   getCampaignRecipients,
+  stopCampaign,
 } from '../services/campaigns';
 import { requireAuth } from '../auth';
 
 export const campaignsRouter = Router();
 campaignsRouter.use(requireAuth);
 
+function isUserAdmin(req: any): boolean {
+  if (req.session?.role === 'admin') return true;
+  if (!req.session?.username) return false;
+  const user = getDb().prepare('SELECT role FROM users WHERE username = ?').get(req.session.username) as { role?: string } | undefined;
+  if (user?.role === 'admin') {
+    req.session.role = 'admin';
+    return true;
+  }
+  return false;
+}
+
 campaignsRouter.get('/campaigns', (req, res) => {
   res.json(listCampaignsWithStats(getDb(), req.session.username!));
 });
 
 campaignsRouter.get('/campaigns/:id', (req, res) => {
-  const campaign = getCampaignById(getDb(), req.session.username!, Number(req.params.id));
+  const campaign = getCampaignById(getDb(), req.session.username!, Number(req.params.id), isUserAdmin(req));
   if (!campaign) return res.sendStatus(404);
   res.json(campaign);
 });
 
 campaignsRouter.get('/campaigns/:id/recipients', (req, res) => {
-  res.json(getCampaignRecipients(getDb(), req.session.username!, Number(req.params.id)));
+  res.json(getCampaignRecipients(getDb(), req.session.username!, Number(req.params.id), isUserAdmin(req)));
+});
+
+campaignsRouter.get('/campaigns/:id/export.csv', (req, res) => {
+  const db = getDb();
+  const isAdmin = isUserAdmin(req);
+  const campaignId = Number(req.params.id);
+  const campaign = getCampaignById(db, req.session.username!, campaignId, isAdmin);
+  if (!campaign) {
+    return res.status(404).send('Campaign not found');
+  }
+
+  const recipients = getCampaignRecipients(db, req.session.username!, campaignId, isAdmin);
+
+  const escapeCSV = (str: any) => {
+    if (str === null || str === undefined) return '""';
+    return '"' + String(str).replace(/"/g, '""') + '"';
+  };
+
+  let csv = 'Phone,Name,Status,Reason/Error,Sent At,Delivered At,Read At\r\n';
+  for (const r of recipients) {
+    const errorMsg = r.error || (r.status !== 'failed' ? 'Success' : 'Unknown');
+    csv += [
+      escapeCSV(r.phone),
+      escapeCSV(r.name || ''),
+      escapeCSV(r.status ? r.status.toUpperCase() : ''),
+      escapeCSV(errorMsg),
+      escapeCSV(r.sent_at || ''),
+      escapeCSV(r.delivered_at || ''),
+      escapeCSV(r.read_at || '')
+    ].join(',') + '\r\n';
+  }
+
+  const safeName = (campaign.name || `campaign_${campaign.id}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeName}_report.csv"`);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  return res.send(csv);
 });
 
 campaignsRouter.post('/campaigns/:id/stop', (req, res) => {
-  const { stopCampaign } = require('../services/campaigns');
-  const stopped = stopCampaign(getDb(), req.session.username!, Number(req.params.id));
+  const stopped = stopCampaign(getDb(), req.session.username!, Number(req.params.id), isUserAdmin(req));
   if (stopped) {
     res.json({ stopped: true });
   } else {

@@ -54,6 +54,13 @@ describe('dashboard-facing routes', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].phone).toBe('+15551111111');
     expect(res.body[0].status).toBe('sent');
+
+    const csvRes = await agent.get(`/campaigns/${campaign.id}/export.csv`);
+    expect(csvRes.status).toBe(200);
+    expect(csvRes.headers['content-type']).toContain('text/csv');
+    expect(csvRes.headers['content-disposition']).toContain('attachment; filename=');
+    expect(csvRes.text).toContain('+15551111111');
+    expect(csvRes.text).toContain('SENT');
   });
 
   it('lists inbound messages via GET /inbound-messages', async () => {
