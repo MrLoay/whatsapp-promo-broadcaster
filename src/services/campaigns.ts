@@ -240,10 +240,12 @@ export async function sendCampaign(
     if (config.dryRun) {
       validAccounts = [owner];
     } else {
-      const accounts = db.prepare(`SELECT id FROM accounts WHERE status = 'READY' AND is_active = 1`).all() as { id: string }[];
-      let candidateAccounts = accounts.map(a => a.id);
+      let candidateAccounts: string[] = [];
       if (accountId && accountId !== 'all') {
-        candidateAccounts = [accountId];
+        candidateAccounts = accountId.split(',').map(s => s.trim()).filter(Boolean);
+      } else {
+        const accounts = db.prepare(`SELECT id FROM accounts WHERE is_active = 1`).all() as { id: string }[];
+        candidateAccounts = accounts.map(a => a.id);
       }
 
       // Filter only accounts whose live in-memory session is ACTUALLY 'ready'
@@ -362,7 +364,7 @@ export async function sendCampaign(
         } catch (err: any) {
           const errorMsg = err?.message || String(err);
           const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
-          const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out');
+          const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out') || errorMsg.includes('me is undefined');
 
           if (isInvalidNumber) {
             // Unregistered WhatsApp number, fail permanently

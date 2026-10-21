@@ -21,10 +21,45 @@
         
         <form id="sendNowForm">
           <div style="margin-bottom: 16px;">
-            <label for="accountSelect">Target Sending Account / Proxy</label>
-            <select id="accountSelect" name="account" style="width: 100%; max-width: 400px;">
-              <option value="all">All Active Accounts (Round-Robin)</option>
-            </select>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label style="font-weight: 600; margin: 0;">Target Sending Accounts / Proxies</label>
+              <div style="font-size: 13px; display: flex; gap: 12px;">
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                  <input type="radio" name="accMode" value="all" checked id="accModeAll"> All Ready Accounts
+                </label>
+                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                  <input type="radio" name="accMode" value="custom" id="accModeCustom"> Choose Specific Accounts
+                </label>
+              </div>
+            </div>
+
+            <!-- Single dropdown mode (active when 'All Ready' is checked) -->
+            <div id="accDropdownContainer">
+              <select id="accountSelect" name="account" style="width: 100%; max-width: 450px; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--card); color: var(--text);">
+                <option value="all">All Ready Accounts (Round-Robin)</option>
+              </select>
+            </div>
+
+            <!-- Multi-select checkbox drawer (active when 'Choose Specific' is checked) -->
+            <div id="accMultiSelectContainer" style="display: none; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--bg); margin-top: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <button type="button" class="secondary" id="btnSelectAllReady" style="font-size: 11px; padding: 4px 8px;">Select All Ready</button>
+                  <button type="button" class="secondary" id="btnClearAccSelection" style="font-size: 11px; padding: 4px 8px;">Deselect All</button>
+                  <button type="button" class="secondary" id="btnSelectBatch1" style="font-size: 11px; padding: 4px 8px;">Batch 1 (1–15)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch2" style="font-size: 11px; padding: 4px 8px;">Batch 2 (16–30)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch3" style="font-size: 11px; padding: 4px 8px;">Batch 3 (31+)</button>
+                </div>
+                <input type="text" id="accSearchInput" placeholder="Filter accounts..." style="font-size: 12px; padding: 4px 8px; width: 160px; border-radius: 4px; border: 1px solid var(--border); background: var(--card); color: var(--text);" />
+              </div>
+
+              <div id="accCheckboxesList" style="max-height: 220px; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px;"></div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px;">
+                <span id="accSelectionSummary" style="font-weight: 600; color: #2563eb;">0 accounts selected (0 ready)</span>
+                <span id="accLoadSummary" class="muted">~0 msgs per account</span>
+              </div>
+            </div>
           </div>
 
           <div style="margin-bottom: 16px;">
@@ -387,6 +422,21 @@
     let globalAccounts = [];
     let globalCredits = 0;
 
+    // Account Selection Toggle
+    const accModeAll = document.getElementById('accModeAll');
+    const accModeCustom = document.getElementById('accModeCustom');
+    const accDropdownContainer = document.getElementById('accDropdownContainer');
+    const accMultiSelectContainer = document.getElementById('accMultiSelectContainer');
+
+    function toggleAccMode() {
+      const isCustom = accModeCustom.checked;
+      accDropdownContainer.style.display = isCustom ? 'none' : 'block';
+      accMultiSelectContainer.style.display = isCustom ? 'block' : 'none';
+      updateMetricsDisplay();
+    }
+    accModeAll.addEventListener('change', toggleAccMode);
+    accModeCustom.addEventListener('change', toggleAccMode);
+
     async function loadAccountsDropdown() {
       try {
         globalAccounts = await api('/accounts');
@@ -401,13 +451,103 @@
           opt.textContent = `${acc.account_name || acc.id} (${statusText})`;
           select.appendChild(opt);
         });
-        if (currentVal && [...select.options].some(o => o.value === currentVal)) {
-          select.value = currentVal;
-        }
+
+        renderAccountCheckboxes();
       } catch (err) {
         console.warn('Failed to load accounts list', err);
       }
     }
+
+    function renderAccountCheckboxes(filterText = '') {
+      const list = document.getElementById('accCheckboxesList');
+      if (!list) return;
+      const lower = filterText.toLowerCase().trim();
+
+      const filtered = globalAccounts.filter(a => {
+        if (!a.is_active) return false;
+        if (!lower) return true;
+        const nameMatch = (a.account_name || '').toLowerCase().includes(lower);
+        const idMatch = a.id.toLowerCase().includes(lower);
+        const phoneMatch = (a.phone_number || '').includes(lower);
+        return nameMatch || idMatch || phoneMatch;
+      });
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="muted" style="padding: 10px; text-align: center; font-size: 13px;">No matching accounts found</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(acc => {
+        const isReady = acc.liveStatus === 'ready';
+        const badgeColor = isReady ? '#10b981' : (acc.liveStatus === 'connecting' || acc.liveStatus === 'authenticated' ? '#f59e0b' : '#64748b');
+        const badgeText = isReady ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
+        const phone = acc.phone_number ? `<span style="font-size: 11px; color: var(--muted); margin-left: 6px;">(${acc.phone_number})</span>` : '';
+
+        return `
+          <label style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" class="acc-checkbox" value="${escapeHtml(acc.id)}" data-ready="${isReady ? '1' : '0'}" style="cursor: pointer;" onchange="updateAccountCheckboxesSummary()">
+              <span style="font-size: 13px; font-weight: 500;">${escapeHtml(acc.account_name || acc.id)} ${phone}</span>
+            </div>
+            <span style="font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; color: white; background: ${badgeColor};">${badgeText}</span>
+          </label>
+        `;
+      }).join('');
+
+      updateAccountCheckboxesSummary();
+    }
+
+    function updateAccountCheckboxesSummary() {
+      const allChecked = Array.from(document.querySelectorAll('.acc-checkbox:checked'));
+      const readyChecked = allChecked.filter(cb => cb.dataset.ready === '1');
+      const totalSelected = allChecked.length;
+      const readySelected = readyChecked.length;
+
+      const summaryEl = document.getElementById('accSelectionSummary');
+      const loadEl = document.getElementById('accLoadSummary');
+      if (summaryEl) {
+        summaryEl.textContent = `${totalSelected} accounts selected (${readySelected} ready)`;
+        summaryEl.style.color = readySelected > 0 ? '#10b981' : (totalSelected > 0 ? '#f59e0b' : '#2563eb');
+      }
+
+      const optedIn = globalContacts ? globalContacts.filter(c => c.opt_in_status === 'opted_in').length : 0;
+      if (loadEl) {
+        if (readySelected > 0 && optedIn > 0) {
+          const perAcc = Math.ceil(optedIn / readySelected);
+          loadEl.textContent = `~${perAcc} msgs per account (${optedIn} total contacts)`;
+        } else {
+          loadEl.textContent = `~0 msgs per account`;
+        }
+      }
+    }
+
+    document.getElementById('btnSelectAllReady').addEventListener('click', () => {
+      document.querySelectorAll('.acc-checkbox').forEach(cb => {
+        cb.checked = cb.dataset.ready === '1';
+      });
+      updateAccountCheckboxesSummary();
+    });
+
+    document.getElementById('btnClearAccSelection').addEventListener('click', () => {
+      document.querySelectorAll('.acc-checkbox').forEach(cb => cb.checked = false);
+      updateAccountCheckboxesSummary();
+    });
+
+    function selectAccountSlice(startIdx, endIdx) {
+      const allCheckboxes = Array.from(document.querySelectorAll('.acc-checkbox'));
+      allCheckboxes.forEach((cb, idx) => {
+        cb.checked = (idx >= startIdx && idx < endIdx);
+      });
+      updateAccountCheckboxesSummary();
+    }
+
+    document.getElementById('btnSelectBatch1').addEventListener('click', () => selectAccountSlice(0, 15));
+    document.getElementById('btnSelectBatch2').addEventListener('click', () => selectAccountSlice(15, 30));
+    document.getElementById('btnSelectBatch3').addEventListener('click', () => selectAccountSlice(30, 999));
+
+    document.getElementById('accSearchInput').addEventListener('input', (e) => {
+      renderAccountCheckboxes(e.target.value);
+    });
 
     async function loadStats() {
       try {
@@ -421,6 +561,12 @@
         globalCredits = creditsRes.balance || 0;
         updateMetricsDisplay();
         
+        // Ensure campaign reports are ALWAYS visible, even after logout and login!
+        if (globalCampaigns && globalCampaigns.length > 0) {
+          document.getElementById('liveProcessContainer').style.display = 'block';
+          renderCampaignsList(globalCampaigns);
+        }
+        
         if (globalCampaigns.some(c => c.status === 'sending' || c.status === 'draft')) {
           startLiveMonitoring();
         }
@@ -430,9 +576,7 @@
     }
 
     function updateMetricsDisplay() {
-      const selectedAccount = document.getElementById('accountSelect').value;
       let targetContacts = globalContacts;
-
       const totalContacts = targetContacts.length;
       const optedIn = targetContacts.filter((c) => c.opt_in_status === 'opted_in').length;
       const optedOut = targetContacts.filter((c) => c.opt_in_status === 'opted_out').length;
@@ -453,6 +597,8 @@
       document.getElementById('stats').innerHTML = stats
         .map(([label, n]) => `<div class="stat"><div class="n">${n}</div><div class="label">${label}</div></div>`)
         .join('');
+
+      updateAccountCheckboxesSummary();
     }
 
     document.getElementById('accountSelect').addEventListener('change', updateMetricsDisplay);
@@ -471,10 +617,31 @@
       resultEl.textContent = '';
 
       const optedIn = globalContacts.filter((c) => c.opt_in_status === 'opted_in').length;
-      const selectedAccount = document.getElementById('accountSelect').value;
-      const accountLabel = selectedAccount === 'all' ? 'All Active Accounts' : selectedAccount;
       const delayMode = form.delayMode.value;
       const customDelay = Number(form.customDelay.value || 120);
+
+      let selectedAccountIds = 'all';
+      let accountLabel = 'All Ready Accounts';
+
+      if (accModeCustom.checked) {
+        const checkedBoxes = Array.from(document.querySelectorAll('.acc-checkbox:checked'));
+        if (checkedBoxes.length === 0) {
+          errorEl.textContent = "Please select at least one WhatsApp account from the list.";
+          return;
+        }
+        const readyBoxes = checkedBoxes.filter(cb => cb.dataset.ready === '1');
+        if (readyBoxes.length === 0) {
+          if (!confirm(`Warning: None of the ${checkedBoxes.length} selected accounts currently show READY. Do you still want to proceed?`)) {
+            return;
+          }
+        }
+        selectedAccountIds = checkedBoxes.map(cb => cb.value).join(',');
+        accountLabel = `${checkedBoxes.length} chosen accounts (${readyBoxes.length} ready)`;
+      } else {
+        const selVal = document.getElementById('accountSelect').value;
+        selectedAccountIds = selVal;
+        accountLabel = selVal === 'all' ? 'All Ready Accounts' : selVal;
+      }
 
       // Compile message variations into spintax
       const messages = [];
@@ -498,7 +665,8 @@
       try {
         const formData = new FormData();
         formData.append('message', finalPayload);
-        formData.append('accountId', selectedAccount);
+        formData.append('accountId', selectedAccountIds);
+        formData.append('accountIds', selectedAccountIds);
         formData.append('delayMode', delayMode);
         formData.append('customDelay', customDelay);
         if (form.media.files[0]) {
@@ -523,7 +691,7 @@
       btn.textContent = originalLabel;
     });
 
-    // --- Live Process Monitoring ---
+    // --- Live Process & Persistent Reports Monitoring ---
     let liveMonitorInterval = null;
     function startLiveMonitoring() {
       if (liveMonitorInterval) return;
@@ -535,50 +703,98 @@
     async function pollLiveProcess() {
       try {
         const campaigns = await api('/campaigns');
-        const active = campaigns.filter(c => c.status === 'sending' || c.status === 'draft');
-        const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 10);
-        
-        const renderCampaign = (c) => `
-          <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <strong>${escapeHtml(c.name)}</strong>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                ${c.status === 'sending' ? `<button onclick="stopCampaign(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; border: none; cursor: pointer;">Stop</button>` : ''}
-                <button onclick="viewLogs(${c.id})" style="padding: 2px 8px; font-size: 11px; background: #64748b; color: white; border-radius: 4px; border: none; cursor: pointer;">Logs</button>
-                <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
-              </div>
-            </div>
-            <div style="display: flex; gap: 16px; font-size: 13px;">
-              <span style="color: #2563eb;">Targeted: <b>${c.totalTargeted || 0}</b></span>
-              <span style="color: #10b981;">Sent: <b>${c.sent || 0}</b></span>
-              <span style="color: #ef4444;">Failed: <b>${c.failed || 0}</b></span>
-            </div>
-            ${c.status === 'sending' ? `
-              <div style="margin-top: 10px; background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
-                <div style="background: #2563eb; height: 100%; width: ${Math.min(100, ((c.sent || 0) + (c.failed || 0)) / Math.max(1, (c.totalTargeted || 1)) * 100)}%;"></div>
-              </div>
-            ` : ''}
-          </div>
-        `;
+        globalCampaigns = campaigns;
+        renderCampaignsList(campaigns);
 
-        let html = '';
-        if (active.length > 0) {
-          html += `<h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2563eb;">📡 Active Broadcasts</h3>`;
-          html += active.map(renderCampaign).join('');
+        const hasActive = campaigns.some(c => c.status === 'sending' || c.status === 'draft');
+        if (!hasActive && liveMonitorInterval) {
+          clearInterval(liveMonitorInterval);
+          liveMonitorInterval = null;
         }
-        if (recent.length > 0) {
-          html += `<h3 style="margin: 16px 0 10px 0; font-size: 14px; color: var(--muted);">Recent History</h3>`;
-          html += recent.map(renderCampaign).join('');
-        }
-        
-        if (html === '') {
-          html = `<p class="muted">No broadcasts found.</p>`;
-        }
-        
-        document.getElementById('liveProcessList').innerHTML = html;
-        await loadStats();
       } catch (e) {
         console.error('Live monitor error', e);
+      }
+    }
+
+    function renderCampaignsList(campaigns) {
+      const active = campaigns.filter(c => c.status === 'sending' || c.status === 'draft');
+      const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 20);
+
+      const renderCampaign = (c) => `
+        <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <div>
+              <strong style="font-size: 14px;">${escapeHtml(c.name)}</strong>
+              <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                ${c.started_at ? `Started: ${new Date(c.started_at).toLocaleString()}` : (c.created_at ? new Date(c.created_at).toLocaleString() : '')}
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              ${c.status === 'sending' ? `<button type="button" onclick="stopCampaign(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; border: none; cursor: pointer; font-weight: bold;">Stop</button>` : ''}
+              <button type="button" onclick="viewLogs(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #64748b; color: white; border-radius: 4px; border: none; cursor: pointer;">Logs</button>
+              <button type="button" onclick="downloadCampaignCSV(${c.id}, '${escapeHtml(c.name)}')" style="padding: 4px 10px; font-size: 11px; background: #10b981; color: white; border-radius: 4px; border: none; cursor: pointer; font-weight: bold;">📥 Download CSV</button>
+              <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 16px; font-size: 13px;">
+            <span style="color: #2563eb;">Targeted: <b>${c.totalTargeted || 0}</b></span>
+            <span style="color: #10b981;">Delivered/Sent: <b>${c.sent || 0}</b></span>
+            <span style="color: #ef4444;">Failed: <b>${c.failed || 0}</b></span>
+          </div>
+          ${c.status === 'sending' ? `
+            <div style="margin-top: 10px; background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
+              <div style="background: #2563eb; height: 100%; width: ${Math.min(100, ((c.sent || 0) + (c.failed || 0)) / Math.max(1, (c.totalTargeted || 1)) * 100)}%;"></div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      let html = '';
+      if (active.length > 0) {
+        html += `<h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2563eb;">📡 Active Broadcasts</h3>`;
+        html += active.map(renderCampaign).join('');
+      }
+      if (recent.length > 0) {
+        html += `<h3 style="margin: 16px 0 10px 0; font-size: 14px; color: var(--muted);">Recent Broadcast History & Reports</h3>`;
+        html += recent.map(renderCampaign).join('');
+      }
+      
+      if (html === '') {
+        html = `<p class="muted">No broadcasts found.</p>`;
+      }
+      
+      document.getElementById('liveProcessList').innerHTML = html;
+    }
+
+    async function downloadCampaignCSV(campaignId, campaignName) {
+      try {
+        const recipients = await api('/campaigns/' + campaignId + '/recipients');
+        if (!recipients || recipients.length === 0) {
+          alert("No recipient logs available for this campaign.");
+          return;
+        }
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "Phone,Status,Reason/Error,Time\n";
+
+        recipients.forEach(r => {
+          let phone = r.phone || '';
+          let status = r.status ? r.status.toUpperCase() : '';
+          let error = r.error || (r.status !== 'failed' ? 'Success' : 'Unknown');
+          let time = r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : 'N/A';
+          const escapeCSV = (str) => '"' + String(str).replace(/"/g, '""') + '"';
+          csvContent += `${escapeCSV(phone)},${escapeCSV(status)},${escapeCSV(error)},${escapeCSV(time)}\n`;
+        });
+
+        const safeName = (campaignName || `campaign_${campaignId}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `${safeName}_report.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (err) {
+        alert("Failed to download CSV: " + err.message);
       }
     }
 
