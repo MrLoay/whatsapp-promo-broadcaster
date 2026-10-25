@@ -80,6 +80,8 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       '--disable-extensions',
       '--no-first-run',
       '--no-zygote',
+      '--renderer-process-limit=1',
+      '--disable-site-isolation-trials',
       '--disable-accelerated-2d-canvas',
       '--disable-background-networking',
       '--disable-background-timer-throttling',
@@ -99,9 +101,9 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
       '--metrics-recording-only',
       '--mute-audio',
       '--no-default-browser-check',
-      '--js-flags=--max-old-space-size=128',
-      '--disk-cache-size=10485760',
-      '--media-cache-size=10485760',
+      '--js-flags=--max-old-space-size=96',
+      '--disk-cache-size=5242880',
+      '--media-cache-size=5242880',
       '--disable-audio-output',
       '--window-size=800,600',
       '--disable-notifications',
@@ -165,7 +167,7 @@ function resetForRetry(owner: string): void {
   const s = getSession(owner);
   const oldClient = s.client;
   if (s.cleanup) {
-    s.cleanup();
+    try { s.cleanup(); } catch {}
     s.cleanup = undefined;
   }
   s.client = null;
@@ -173,6 +175,15 @@ function resetForRetry(owner: string): void {
   s.latestQr = null; // Wipe stale QR on reset!
   s.latestQrDataUrl = null;
   if (oldClient) {
+    try {
+      if (oldClient.pupBrowser) {
+        const proc = oldClient.pupBrowser.process();
+        if (proc && proc.pid) {
+          try { process.kill(proc.pid, 'SIGKILL'); } catch {}
+        }
+        oldClient.pupBrowser.close().catch(() => {});
+      }
+    } catch {}
     oldClient.destroy().catch(() => {});
   }
 }
@@ -266,22 +277,20 @@ export async function disconnect(owner: string): Promise<void> {
       Promise.race([promise, new Promise((res) => setTimeout(res, ms))]);
 
     try {
-      await withTimeout(c.logout(), 2000);
-    } catch {
-      // Best-effort -- state is already reset above
-    }
+      await withTimeout(c.logout(), 1000);
+    } catch {}
     try {
       if (c.pupBrowser) {
-        await withTimeout(c.pupBrowser.close(), 2000);
+        const proc = c.pupBrowser.process();
+        if (proc && proc.pid) {
+          try { process.kill(proc.pid, 'SIGKILL'); } catch {}
+        }
+        await withTimeout(c.pupBrowser.close(), 1000);
       }
-    } catch {
-      /* process may already be closed */
-    }
+    } catch {}
     try {
-      await withTimeout(c.destroy(), 2000);
-    } catch {
-      /* already torn down */
-    }
+      await withTimeout(c.destroy(), 1000);
+    } catch {}
   }
 }
 
@@ -299,13 +308,19 @@ export async function destroyAll(): Promise<void> {
         Promise.resolve().then(async () => {
           try {
             if (s.client?.pupBrowser) {
+              const proc = s.client.pupBrowser.process();
+              if (proc && proc.pid) {
+                try { process.kill(proc.pid, 'SIGKILL'); } catch {}
+              }
               await s.client.pupBrowser.close().catch(() => {});
             }
           } catch {}
           try {
             await s.client?.destroy().catch(() => {});
           } catch {}
-          if (s.cleanup) s.cleanup();
+          if (s.cleanup) {
+            try { s.cleanup(); } catch {}
+          }
         })
       );
     }

@@ -113,8 +113,8 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
   });
 }
 
-// Concurrency gate: at most 3 Chromium instances initialize concurrently to protect CPU & memory
-const MAX_CONCURRENT_INITIALIZATIONS = 3;
+// Concurrency gate: strictly 1 Chromium instance initializes at a time to prevent CPU / RAM spikes
+const MAX_CONCURRENT_INITIALIZATIONS = 1;
 let activeInitializations = 0;
 const launchQueue: Array<() => void> = [];
 
@@ -133,7 +133,7 @@ function acquireInitSlot(): Promise<void> {
 
 function releaseInitSlot(): void {
   activeInitializations = Math.max(0, activeInitializations - 1);
-  while (launchQueue.length > 0 && activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
+  if (launchQueue.length > 0 && activeInitializations < MAX_CONCURRENT_INITIALIZATIONS) {
     const next = launchQueue.shift();
     if (next) next();
   }
@@ -142,7 +142,7 @@ function releaseInitSlot(): void {
 export async function startWebJsListeners(db: Database.Database, owner: string, proxyUrl?: string | null): Promise<void> {
   updateAccountStatus(db, owner, 'CONNECTING');
 
-  const connectWithRetry = async (attempt = 1, maxAttempts = 5) => {
+  const connectWithRetry = async (attempt = 1, maxAttempts = 2) => {
     let slotReleased = false;
     await acquireInitSlot();
     const releaseOnce = () => {
@@ -156,9 +156,8 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       const initialClient = await getWebJsClient(owner, proxyUrl);
       wireClientEvents(db, owner, initialClient, proxyUrl);
 
-      // Free the slot as soon as browser is loaded and waiting for QR or ready,
-      // or after 15 seconds max so a stalled proxy never starves other accounts.
-      const slotTimer = setTimeout(releaseOnce, 15000);
+      // Release slot ONLY once account is genuinely ready, has rendered QR, or hit timeout
+      const slotTimer = setTimeout(releaseOnce, 35000);
       initialClient.once('qr', () => { clearTimeout(slotTimer); releaseOnce(); });
       initialClient.once('authenticated', () => { clearTimeout(slotTimer); releaseOnce(); });
       initialClient.once('ready', () => { clearTimeout(slotTimer); releaseOnce(); });
@@ -170,6 +169,13 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
     } catch (err) {
       releaseOnce();
       const errorMsg = (err as Error)?.message || String(err || 'Unknown error');
+      
+      // Forcibly destroy failed client & kill browser to prevent zombie memory leaks
+      try {
+        const { disconnect } = require('./webjs-client');
+        await disconnect(owner);
+      } catch {}
+
       if (attempt >= maxAttempts) {
         updateAccountStatus(db, owner, 'DISCONNECTED');
       }
@@ -186,7 +192,7 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       }));
 
       if (attempt < maxAttempts) {
-        const delayMs = Math.min(Math.pow(2, attempt) * 2000, 30000);
+        const delayMs = 5000;
         setTimeout(() => connectWithRetry(attempt + 1, maxAttempts), delayMs);
       }
     } finally {

@@ -87,15 +87,20 @@ if (require.main === module) {
         return fs.existsSync(sessionDbPath);
       });
 
-      console.log(`[Auto-Reconnect] Identified ${accountsToLaunch.length} active WhatsApp accounts to restore. Launching sequentially...`);
+      console.log(`[Auto-Reconnect] Identified ${accountsToLaunch.length} active WhatsApp accounts to restore. Pacing sequentially (1 at a time)...`);
 
       const launchAccounts = async () => {
         for (const account of accountsToLaunch) {
-          startWebJsListeners(db, account.id, account.proxy_url);
-          await new Promise(resolve => setTimeout(resolve, 4000));
+          try {
+            startWebJsListeners(db, account.id, account.proxy_url);
+          } catch (e) {
+            console.error(`[Auto-Reconnect] Failed to start ${account.id}:`, e);
+          }
+          await new Promise(resolve => setTimeout(resolve, 8000));
         }
       };
-      launchAccounts();
+      // Run auto-reconnect asynchronously after server is listening so web dashboard loads immediately
+      setTimeout(launchAccounts, 3000);
     } catch (err) {
       console.error('Failed to auto-reconnect WhatsApp accounts:', (err as Error).message);
     }
