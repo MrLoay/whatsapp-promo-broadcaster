@@ -20,44 +20,62 @@
         <p class="muted" data-i18n="home.send.desc">Sends to every contact right away -- no draft, no review step. Use <code>{{name}}</code> to fill in each contact's own name automatically.</p>
         
         <form id="sendNowForm">
-          <div style="margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label style="font-weight: 600; margin: 0;">Target Sending Accounts / Proxies</label>
-              <div style="font-size: 13px; display: flex; gap: 12px;">
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                  <input type="radio" name="accMode" value="all" checked id="accModeAll"> All Ready Accounts
+          <div style="margin-bottom: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--card);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <label style="font-weight: 700; font-size: 14px; margin: 0; display: block; color: var(--text);">
+                  🎯 Which Accounts Should Send This Broadcast?
                 </label>
-                <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
-                  <input type="radio" name="accMode" value="custom" id="accModeCustom"> Choose Specific Accounts
-                </label>
+                <span class="muted" style="font-size: 12px;">Choose whether to blast using all ready accounts or pick specific batches.</span>
+              </div>
+              <!-- Big prominent switcher tabs -->
+              <div style="display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 4px;">
+                <button type="button" id="tabModeAll" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: #2563eb; color: white; cursor: pointer; transition: all 0.2s;">
+                  🌐 All Ready Accounts
+                </button>
+                <button type="button" id="tabModeCustom" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: transparent; color: var(--text); cursor: pointer; transition: all 0.2s;">
+                  🎯 Choose Specific Accounts / Batches
+                </button>
               </div>
             </div>
 
-            <!-- Single dropdown mode (active when 'All Ready' is checked) -->
-            <div id="accDropdownContainer">
-              <select id="accountSelect" name="account" style="width: 100%; max-width: 450px; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--card); color: var(--text);">
-                <option value="all">All Ready Accounts (Round-Robin)</option>
-              </select>
-            </div>
+            <input type="radio" name="accMode" value="all" checked id="accModeAll" style="display: none;">
+            <input type="radio" name="accMode" value="custom" id="accModeCustom" style="display: none;">
 
-            <!-- Multi-select checkbox drawer (active when 'Choose Specific' is checked) -->
-            <div id="accMultiSelectContainer" style="display: none; border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--bg); margin-top: 8px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
-                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                  <button type="button" class="secondary" id="btnSelectAllReady" style="font-size: 11px; padding: 4px 8px;">Select All Ready</button>
-                  <button type="button" class="secondary" id="btnClearAccSelection" style="font-size: 11px; padding: 4px 8px;">Deselect All</button>
-                  <button type="button" class="secondary" id="btnSelectBatch1" style="font-size: 11px; padding: 4px 8px;">Batch 1 (1–15)</button>
-                  <button type="button" class="secondary" id="btnSelectBatch2" style="font-size: 11px; padding: 4px 8px;">Batch 2 (16–30)</button>
-                  <button type="button" class="secondary" id="btnSelectBatch3" style="font-size: 11px; padding: 4px 8px;">Batch 3 (31+)</button>
+            <!-- Mode 1: All Ready Accounts Banner & Single Dropdown -->
+            <div id="accDropdownContainer" style="padding: 12px 14px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);">
+              <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div>
+                  <div style="font-size: 13px; font-weight: 600; color: #16a34a;">✓ Blasting across all available accounts in Round-Robin</div>
+                  <div class="muted" style="font-size: 12px;">Messages will automatically rotate evenly across every connected WhatsApp phone.</div>
                 </div>
-                <input type="text" id="accSearchInput" placeholder="Filter accounts..." style="font-size: 12px; padding: 4px 8px; width: 160px; border-radius: 4px; border: 1px solid var(--border); background: var(--card); color: var(--text);" />
+                <select id="accountSelect" name="account" style="padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; max-width: 380px;">
+                  <option value="all">All Ready Accounts (Round-Robin)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Mode 2: Multi-select drawer with prominent batches -->
+            <div id="accMultiSelectContainer" style="display: none; border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--bg);">
+              <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #2563eb;">
+                ⚡ Quick Batch Selector:
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  <button type="button" class="secondary" id="btnSelectBatch1" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 1 (1–15)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch2" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 2 (16–30)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch3" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #ec4899; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 3 (31–48)</button>
+                  <button type="button" class="secondary" id="btnSelectAllReady" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">✓ Select All Ready</button>
+                  <button type="button" class="secondary" id="btnClearAccSelection" style="font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;">✕ Deselect All</button>
+                </div>
+                <input type="text" id="accSearchInput" placeholder="🔍 Filter accounts by name or no..." style="font-size: 12px; padding: 6px 12px; width: 220px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text);" />
               </div>
 
-              <div id="accCheckboxesList" style="max-height: 220px; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px;"></div>
+              <div id="accCheckboxesList" style="max-height: 260px; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px;"></div>
 
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px;">
-                <span id="accSelectionSummary" style="font-weight: 600; color: #2563eb;">0 accounts selected (0 ready)</span>
-                <span id="accLoadSummary" class="muted">~0 msgs per account</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 13px;">
+                <span id="accSelectionSummary" style="font-weight: 700; color: #2563eb;">0 accounts selected (0 ready)</span>
+                <span id="accLoadSummary" class="muted" style="font-weight: 600;">~0 msgs per account</span>
               </div>
             </div>
           </div>
@@ -172,7 +190,7 @@
 
     <!-- ==================== WHATSAPP ACCOUNTS VIEW ==================== -->
     <div id="view-whatsapp" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
         <h1 style="margin:0;">WhatsApp Accounts & Proxies</h1>
         <div style="display: flex; gap: 8px;">
           <button id="openBulkAddModalBtn" class="secondary">+ Bulk Add</button>
@@ -182,6 +200,20 @@
 
       <div id="needsLiveMode" style="display:none;" class="card muted">
         Test mode (DRY_RUN) is currently on. Turn it off to connect real WhatsApp sessions with proxies.
+      </div>
+
+      <!-- Accounts Toolbar: Sort & Filter -->
+      <div style="margin-bottom: 16px; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; background: var(--card); border: 1px solid var(--border); border-radius: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span style="font-weight: 700; font-size: 13px;">Sort Accounts:</span>
+          <button type="button" id="btnSortAZ" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 700; background: #2563eb; color: white; border-radius: 6px; cursor: pointer; border: none;">🔤 Sort A–Z (1 to 48)</button>
+          <button type="button" id="btnSortReady" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;">🟢 Ready First</button>
+          <button type="button" id="btnSortDisconnected" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;">⚪ Disconnected First</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="waSearchInput" placeholder="🔍 Search account or phone..." style="font-size: 13px; padding: 6px 12px; width: 230px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);" />
+          <span id="waAccountsCountBadge" style="font-size: 12px; font-weight: 600; color: var(--muted); padding: 5px 10px; background: var(--bg); border-radius: 6px; border: 1px solid var(--border);">Loading...</span>
+        </div>
       </div>
 
       <div class="accounts-grid" id="accountsGrid"></div>
@@ -427,30 +459,61 @@
     const accModeCustom = document.getElementById('accModeCustom');
     const accDropdownContainer = document.getElementById('accDropdownContainer');
     const accMultiSelectContainer = document.getElementById('accMultiSelectContainer');
+    const tabModeAll = document.getElementById('tabModeAll');
+    const tabModeCustom = document.getElementById('tabModeCustom');
 
-    function toggleAccMode() {
-      const isCustom = accModeCustom.checked;
-      accDropdownContainer.style.display = isCustom ? 'none' : 'block';
-      accMultiSelectContainer.style.display = isCustom ? 'block' : 'none';
+    const homeNaturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+    function toggleAccMode(mode) {
+      if (mode === 'all') {
+        if (accModeAll) accModeAll.checked = true;
+      } else if (mode === 'custom') {
+        if (accModeCustom) accModeCustom.checked = true;
+      }
+      const isCustom = accModeCustom ? accModeCustom.checked : false;
+      if (accDropdownContainer) accDropdownContainer.style.display = isCustom ? 'none' : 'block';
+      if (accMultiSelectContainer) accMultiSelectContainer.style.display = isCustom ? 'block' : 'none';
+
+      if (tabModeAll && tabModeCustom) {
+        if (isCustom) {
+          tabModeAll.style.background = 'transparent';
+          tabModeAll.style.color = 'var(--text)';
+          tabModeCustom.style.background = '#2563eb';
+          tabModeCustom.style.color = 'white';
+        } else {
+          tabModeAll.style.background = '#2563eb';
+          tabModeAll.style.color = 'white';
+          tabModeCustom.style.background = 'transparent';
+          tabModeCustom.style.color = 'var(--text)';
+        }
+      }
       updateMetricsDisplay();
     }
-    accModeAll.addEventListener('change', toggleAccMode);
-    accModeCustom.addEventListener('change', toggleAccMode);
+    if (tabModeAll) tabModeAll.addEventListener('click', () => toggleAccMode('all'));
+    if (tabModeCustom) tabModeCustom.addEventListener('click', () => toggleAccMode('custom'));
+    if (accModeAll) accModeAll.addEventListener('change', () => toggleAccMode());
+    if (accModeCustom) accModeCustom.addEventListener('change', () => toggleAccMode());
 
     async function loadAccountsDropdown() {
       try {
-        globalAccounts = await api('/accounts');
+        const data = await api('/accounts');
+        globalAccounts = Array.isArray(data) ? data : [];
+        // Sort accounts naturally A-Z (Account 1 to 48)
+        globalAccounts.sort((a, b) => homeNaturalCollator.compare(a.account_name || a.id, b.account_name || b.id));
+
         const select = document.getElementById('accountSelect');
         const readyCount = globalAccounts.filter(a => a.is_active && a.liveStatus === 'ready').length;
-        select.innerHTML = `<option value="all">All Ready Accounts (${readyCount} ready)</option>`;
-        globalAccounts.forEach((acc) => {
-          if (!acc.is_active) return;
-          const statusText = acc.liveStatus === 'ready' ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
-          const opt = document.createElement('option');
-          opt.value = acc.id;
-          opt.textContent = `${acc.account_name || acc.id} (${statusText})`;
-          select.appendChild(opt);
-        });
+        if (select) {
+          select.innerHTML = `<option value="all">All Ready Accounts (${readyCount} ready in Round-Robin)</option>`;
+          globalAccounts.forEach((acc) => {
+            if (!acc.is_active) return;
+            const statusText = acc.liveStatus === 'ready' ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
+            const opt = document.createElement('option');
+            opt.value = acc.id;
+            opt.textContent = `${acc.account_name || acc.id} (${statusText})`;
+            select.appendChild(opt);
+          });
+        }
 
         renderAccountCheckboxes();
       } catch (err) {
@@ -468,7 +531,7 @@
         if (!lower) return true;
         const nameMatch = (a.account_name || '').toLowerCase().includes(lower);
         const idMatch = a.id.toLowerCase().includes(lower);
-        const phoneMatch = (a.phone_number || '').includes(lower);
+        const phoneMatch = (a.phone || a.phone_number || '').includes(lower);
         return nameMatch || idMatch || phoneMatch;
       });
 
@@ -481,7 +544,7 @@
         const isReady = acc.liveStatus === 'ready';
         const badgeColor = isReady ? '#10b981' : (acc.liveStatus === 'connecting' || acc.liveStatus === 'authenticated' ? '#f59e0b' : '#64748b');
         const badgeText = isReady ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
-        const phone = acc.phone_number ? `<span style="font-size: 11px; color: var(--muted); margin-left: 6px;">(${acc.phone_number})</span>` : '';
+        const phone = (acc.phone || acc.phone_number) ? `<span style="font-size: 11px; color: var(--muted); margin-left: 6px;">(${acc.phone || acc.phone_number})</span>` : '';
 
         return `
           <label style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
@@ -521,17 +584,23 @@
       }
     }
 
-    document.getElementById('btnSelectAllReady').addEventListener('click', () => {
-      document.querySelectorAll('.acc-checkbox').forEach(cb => {
-        cb.checked = cb.dataset.ready === '1';
+    const btnSelectAllReady = document.getElementById('btnSelectAllReady');
+    if (btnSelectAllReady) {
+      btnSelectAllReady.addEventListener('click', () => {
+        document.querySelectorAll('.acc-checkbox').forEach(cb => {
+          cb.checked = cb.dataset.ready === '1';
+        });
+        updateAccountCheckboxesSummary();
       });
-      updateAccountCheckboxesSummary();
-    });
+    }
 
-    document.getElementById('btnClearAccSelection').addEventListener('click', () => {
-      document.querySelectorAll('.acc-checkbox').forEach(cb => cb.checked = false);
-      updateAccountCheckboxesSummary();
-    });
+    const btnClearAccSelection = document.getElementById('btnClearAccSelection');
+    if (btnClearAccSelection) {
+      btnClearAccSelection.addEventListener('click', () => {
+        document.querySelectorAll('.acc-checkbox').forEach(cb => cb.checked = false);
+        updateAccountCheckboxesSummary();
+      });
+    }
 
     function selectAccountSlice(startIdx, endIdx) {
       const allCheckboxes = Array.from(document.querySelectorAll('.acc-checkbox'));
@@ -541,13 +610,19 @@
       updateAccountCheckboxesSummary();
     }
 
-    document.getElementById('btnSelectBatch1').addEventListener('click', () => selectAccountSlice(0, 15));
-    document.getElementById('btnSelectBatch2').addEventListener('click', () => selectAccountSlice(15, 30));
-    document.getElementById('btnSelectBatch3').addEventListener('click', () => selectAccountSlice(30, 999));
+    const btnBatch1 = document.getElementById('btnSelectBatch1');
+    if (btnBatch1) btnBatch1.addEventListener('click', () => selectAccountSlice(0, 15));
+    const btnBatch2 = document.getElementById('btnSelectBatch2');
+    if (btnBatch2) btnBatch2.addEventListener('click', () => selectAccountSlice(15, 30));
+    const btnBatch3 = document.getElementById('btnSelectBatch3');
+    if (btnBatch3) btnBatch3.addEventListener('click', () => selectAccountSlice(30, 999));
 
-    document.getElementById('accSearchInput').addEventListener('input', (e) => {
-      renderAccountCheckboxes(e.target.value);
-    });
+    const accSearch = document.getElementById('accSearchInput');
+    if (accSearch) {
+      accSearch.addEventListener('input', (e) => {
+        renderAccountCheckboxes(e.target.value);
+      });
+    }
 
     async function loadStats() {
       try {
@@ -1140,6 +1215,43 @@
     let connectingAccountIds = new Set();
     let lastRenderedAccountsJson = '';
     let lastKnownStates = [];
+    let waSortMode = 'az'; // 'az', 'ready', 'disconnected'
+    let waFilterText = '';
+
+    const waNaturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+    function setWaSortMode(mode) {
+      waSortMode = mode;
+      const btnAZ = document.getElementById('btnSortAZ');
+      const btnReady = document.getElementById('btnSortReady');
+      const btnDisc = document.getElementById('btnSortDisconnected');
+      if (btnAZ && btnReady && btnDisc) {
+        btnAZ.style.background = mode === 'az' ? '#2563eb' : 'var(--border)';
+        btnAZ.style.color = mode === 'az' ? 'white' : 'var(--text)';
+        btnReady.style.background = mode === 'ready' ? '#10b981' : 'var(--border)';
+        btnReady.style.color = mode === 'ready' ? 'white' : 'var(--text)';
+        btnDisc.style.background = mode === 'disconnected' ? '#64748b' : 'var(--border)';
+        btnDisc.style.color = mode === 'disconnected' ? 'white' : 'var(--text)';
+      }
+      lastRenderedAccountsJson = '';
+      renderAccounts();
+    }
+
+    const btnSortAZ = document.getElementById('btnSortAZ');
+    if (btnSortAZ) btnSortAZ.addEventListener('click', () => setWaSortMode('az'));
+    const btnSortReady = document.getElementById('btnSortReady');
+    if (btnSortReady) btnSortReady.addEventListener('click', () => setWaSortMode('ready'));
+    const btnSortDisconnected = document.getElementById('btnSortDisconnected');
+    if (btnSortDisconnected) btnSortDisconnected.addEventListener('click', () => setWaSortMode('disconnected'));
+
+    const waSearchInput = document.getElementById('waSearchInput');
+    if (waSearchInput) {
+      waSearchInput.addEventListener('input', (e) => {
+        waFilterText = e.target.value;
+        lastRenderedAccountsJson = '';
+        renderAccounts();
+      });
+    }
 
     function renderAccounts(states) {
       if (states) lastKnownStates = states;
@@ -1148,6 +1260,8 @@
       if (!grid) return;
       if (!states || states.length === 0) {
         grid.innerHTML = '<div class="card muted" style="grid-column: 1/-1;">No accounts connected yet. Click "+ Add Account" to configure one.</div>';
+        const badge = document.getElementById('waAccountsCountBadge');
+        if (badge) badge.textContent = '0 accounts';
         return;
       }
 
@@ -1158,13 +1272,53 @@
         }
       });
 
-      const currentJson = JSON.stringify({ states, connecting: Array.from(connectingAccountIds) });
+      // Filter
+      const lower = waFilterText.toLowerCase().trim();
+      let filtered = states;
+      if (lower) {
+        filtered = states.filter(acc => {
+          const nameMatch = (acc.account_name || '').toLowerCase().includes(lower);
+          const idMatch = (acc.id || '').toLowerCase().includes(lower);
+          const phoneMatch = (acc.phone || '').includes(lower);
+          const pushMatch = (acc.pushname || '').toLowerCase().includes(lower);
+          return nameMatch || idMatch || phoneMatch || pushMatch;
+        });
+      }
+
+      // Sort
+      const sorted = [...filtered];
+      if (waSortMode === 'ready') {
+        sorted.sort((a, b) => {
+          const aReady = (a.liveStatus === 'ready' || a.dbStatus === 'READY') ? 1 : 0;
+          const bReady = (b.liveStatus === 'ready' || b.dbStatus === 'READY') ? 1 : 0;
+          if (aReady !== bReady) return bReady - aReady;
+          return waNaturalCollator.compare(a.account_name || a.id, b.account_name || b.id);
+        });
+      } else if (waSortMode === 'disconnected') {
+        sorted.sort((a, b) => {
+          const aDisc = (a.liveStatus === 'ready' || a.dbStatus === 'READY') ? 0 : 1;
+          const bDisc = (b.liveStatus === 'ready' || b.dbStatus === 'READY') ? 0 : 1;
+          if (aDisc !== bDisc) return bDisc - aDisc;
+          return waNaturalCollator.compare(a.account_name || a.id, b.account_name || b.id);
+        });
+      } else {
+        // Natural A-Z sort (1 to 48)
+        sorted.sort((a, b) => waNaturalCollator.compare(a.account_name || a.id, b.account_name || b.id));
+      }
+
+      const readyCount = states.filter(a => a.liveStatus === 'ready' || a.dbStatus === 'READY').length;
+      const countBadge = document.getElementById('waAccountsCountBadge');
+      if (countBadge) {
+        countBadge.textContent = `${sorted.length} shown of ${states.length} (${readyCount} READY)`;
+      }
+
+      const currentJson = JSON.stringify({ sorted, connecting: Array.from(connectingAccountIds), waSortMode, waFilterText });
       if (currentJson === lastRenderedAccountsJson) {
         return; // State unchanged, skip re-render to avoid DOM flickering
       }
       lastRenderedAccountsJson = currentJson;
 
-      grid.innerHTML = states.map((acc) => {
+      grid.innerHTML = sorted.map((acc) => {
         const isConnecting = connectingAccountIds.has(acc.id);
         let displayStatus = isConnecting
           ? 'CONNECTING'

@@ -17,7 +17,9 @@ export function getAccountById(db: Database.Database, id: string): Account | und
 }
 
 export function listAccounts(db: Database.Database): Account[] {
-  return db.prepare('SELECT * FROM accounts ORDER BY created_at DESC').all() as Account[];
+  const accounts = db.prepare('SELECT * FROM accounts').all() as Account[];
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  return accounts.sort((a, b) => collator.compare(a.account_name || a.id, b.account_name || b.id));
 }
 
 export function upsertAccount(

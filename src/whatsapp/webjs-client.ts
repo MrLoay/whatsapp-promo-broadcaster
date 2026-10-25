@@ -363,12 +363,49 @@ export async function sendTextMessage(
     throw new Error(`WhatsApp page for ${owner} is closed or unreachable.`);
   }
 
-  // Brief check to ensure WWebJS helper module is alive
+  // Ensure WWebJS helper module is alive and patch media memoize getter issue
   try {
-    const isReady = await c.pupPage.evaluate(() => typeof (globalThis as any).WWebJS !== 'undefined').catch(() => false);
-    if (!isReady) {
-      await new Promise(r => setTimeout(r, 2000));
-    }
+    await c.pupPage.evaluate(() => {
+      const w = globalThis as any;
+      if (!w.WWebJS) return false;
+      if (!w.WWebJS._mediaMemoizePatched) {
+        w.WWebJS._mediaMemoizePatched = true;
+        
+        // Patch processMediaData to strip __x_id
+        const origProcess = w.WWebJS.processMediaData;
+        if (origProcess) {
+          w.WWebJS.processMediaData = async function(...args: any[]) {
+            const res = await origProcess.apply(this, args);
+            if (res) {
+              try { delete res.__x_id; } catch {}
+              if (res.toJSON) {
+                const origToJSON = res.toJSON;
+                res.toJSON = function() {
+                  const json = origToJSON.apply(this, arguments);
+                  if (json) {
+                    try { delete json.__x_id; } catch {}
+                  }
+                  return json;
+                };
+              }
+            }
+            return res;
+          };
+        }
+
+        // Patch sendMessage to delete message.__x_id
+        const origSend = w.WWebJS.sendMessage;
+        if (origSend) {
+          w.WWebJS.sendMessage = async function(chat: any, content: any, opts: any = {}) {
+            if (opts && opts.media) {
+              try { delete opts.media.__x_id; } catch {}
+            }
+            return origSend.apply(this, arguments);
+          };
+        }
+      }
+      return true;
+    });
   } catch {}
 
   let message: any = null;
