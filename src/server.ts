@@ -37,6 +37,21 @@ export function createApp(): Express {
 
   app.get('/health', (_req, res) => res.json({ ok: true, dryRun: config.dryRun }));
 
+  // Loopback-only helper to trigger a test send directly from the server CLI
+  app.post('/api/internal/test-send', async (req, res) => {
+    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    if (!isLocal) return res.status(403).json({ error: 'Local only' });
+    const { owner = 'rose', message = 'System test broadcast from new server', accountId, mediaPath } = req.body ?? {};
+    try {
+      const { sendNow } = require('./services/campaigns');
+      const { getDb } = require('./db');
+      const result = await sendNow(getDb(), owner, message, 'immediate', 0, mediaPath, undefined, accountId);
+      res.json({ ok: true, campaign: result });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
   // Static dashboard pages are served (and requests for them terminated)
   // before the API routers below, so login.html/style.css/etc. are reachable
   // without a session -- the pages themselves hold no data, they just call
@@ -55,21 +70,6 @@ export function createApp(): Express {
   app.use(systemRouter);
   app.use(creditsRouter);
   app.use(adminRouter);
-
-  // Loopback-only helper to trigger a test send directly from the server CLI
-  app.post('/api/internal/test-send', async (req, res) => {
-    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
-    if (!isLocal) return res.status(403).json({ error: 'Local only' });
-    const { owner = 'rose', message = 'System test broadcast from new server', accountId, mediaPath } = req.body ?? {};
-    try {
-      const { sendNow } = require('./services/campaigns');
-      const { getDb } = require('./db');
-      const result = await sendNow(getDb(), owner, message, 'immediate', 0, mediaPath, undefined, accountId);
-      res.json({ ok: true, campaign: result });
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
-    }
-  });
 
   return app;
 }
