@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { Client, LocalAuth, type Message } from 'whatsapp-web.js';
 import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
@@ -129,6 +131,20 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
     }
 
     const safeClientId = owner.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    // Clean up any stale Chromium Singleton locks left from previous crashes or migrations
+    try {
+      const sessionDir = path.join(config.whatsapp.webjsSessionPath, 'session-' + safeClientId);
+      if (fs.existsSync(sessionDir)) {
+        ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach((lockFile) => {
+          const lockPath = path.join(sessionDir, lockFile);
+          if (fs.existsSync(lockPath)) {
+            try { fs.unlinkSync(lockPath); } catch {}
+          }
+        });
+      }
+    } catch {}
+
     s.client = new Client({
       authStrategy: new LocalAuth({ dataPath: config.whatsapp.webjsSessionPath, clientId: safeClientId }),
       qrMaxRetries: 15,

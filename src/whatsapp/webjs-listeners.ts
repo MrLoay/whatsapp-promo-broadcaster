@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import type Database from 'better-sqlite3';
 import { WAState, Message } from 'whatsapp-web.js';
 import { getWebJsClient, ensureReady } from './webjs-client';
@@ -6,6 +9,32 @@ import { recordDeliveryStatus } from '../services/campaigns';
 import { isOptOutMessage } from '../services/optOut';
 import { updateAccountStatus } from '../services/accounts';
 import { config } from '../config';
+
+export function recordTelemetryEvent(data: {
+  category: string;
+  owner: string;
+  level?: string;
+  details?: string;
+}) {
+  try {
+    const mem = process.memoryUsage();
+    const entry = {
+      timestamp: new Date().toISOString(),
+      category: data.category,
+      owner: data.owner,
+      level: data.level || 'INFO',
+      details: data.details || null,
+      loadAvg: Math.round((os.loadavg()[0] || 0) * 100) / 100,
+      totalMemMb: Math.round(os.totalmem() / (1024 * 1024)),
+      freeMemMb: Math.round(os.freemem() / (1024 * 1024)),
+      usedMemMb: Math.round((os.totalmem() - os.freemem()) / (1024 * 1024)),
+      heapUsedMb: Math.round(mem.heapUsed / (1024 * 1024))
+    };
+    const dir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, 'telemetry.jsonl'), JSON.stringify(entry) + '\n', 'utf-8');
+  } catch {}
+}
 
 /**
  * Attaches inbound-message and delivery-ack listeners for one owner's
@@ -19,10 +48,12 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
 
   client.on('qr', () => {
     updateAccountStatus(db, owner, 'QR_READY');
+    recordTelemetryEvent({ category: 'QR_RENDERED', owner, level: 'WARN', details: 'Awaiting QR scan' });
   });
 
   client.on('ready', () => {
     updateAccountStatus(db, owner, 'READY');
+    recordTelemetryEvent({ category: 'ACCOUNT_READY', owner, level: 'INFO', details: 'Authenticated and ready' });
   });
 
   client.on('message', (message: Message) => {
@@ -46,6 +77,12 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
 
   client.on('disconnected', (reason: WAState | string) => {
     updateAccountStatus(db, owner, 'DISCONNECTED');
+    recordTelemetryEvent({
+      category: 'SESSION_DISCONNECTED',
+      owner,
+      level: 'ERROR',
+      details: String(reason || 'Unknown reason')
+    });
     console.error(JSON.stringify({
       timestamp: new Date().toISOString(),
       level: 'ERROR',
