@@ -345,7 +345,6 @@ export async function destroyAll(): Promise<void> {
   sessions.clear();
 }
 
-import fs from 'fs';
 import { MessageMedia } from 'whatsapp-web.js';
 
 export async function sendTextMessage(
