@@ -378,7 +378,39 @@ export async function sendTextMessage(
 
   if (mediaPath && fs.existsSync(mediaPath)) {
     try {
-      messageContent = MessageMedia.fromFilePath(mediaPath);
+      const b64data = fs.readFileSync(mediaPath, { encoding: 'base64' });
+      let finalMime = mediaMimeType;
+
+      // If mimeType not provided or generic, detect via extension or file magic bytes
+      if (!finalMime || finalMime === 'application/octet-stream') {
+        const ext = path.extname(mediaPath).toLowerCase();
+        if (ext === '.jpg' || ext === '.jpeg') finalMime = 'image/jpeg';
+        else if (ext === '.png') finalMime = 'image/png';
+        else if (ext === '.webp') finalMime = 'image/webp';
+        else if (ext === '.gif') finalMime = 'image/gif';
+        else if (ext === '.mp4') finalMime = 'video/mp4';
+        else if (ext === '.pdf') finalMime = 'application/pdf';
+        else {
+          // Detect by magic bytes
+          const buf = fs.readFileSync(mediaPath);
+          if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+            finalMime = 'image/jpeg';
+          } else if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+            finalMime = 'image/png';
+          } else if (buf.length >= 12 && buf.toString('utf8', 0, 4) === 'RIFF' && buf.toString('utf8', 8, 12) === 'WEBP') {
+            finalMime = 'image/webp';
+          } else {
+            finalMime = 'image/jpeg';
+          }
+        }
+      }
+
+      const fileExt = finalMime.includes('png') ? 'png' : finalMime.includes('webp') ? 'webp' : 'jpg';
+      const filename = path.basename(mediaPath).includes('.')
+        ? path.basename(mediaPath)
+        : `photo_${Date.now()}.${fileExt}`;
+
+      messageContent = new MessageMedia(finalMime, b64data, filename);
       if (text) {
         options.caption = text;
       }

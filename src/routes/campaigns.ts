@@ -116,9 +116,24 @@ campaignsRouter.post('/campaigns/quick', (req, res) => {
 
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(process.cwd(), 'data', 'media');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const originalExt = path.extname(file.originalname);
+    const mimeExt = file.mimetype.includes('png') ? '.png' : file.mimetype.includes('webp') ? '.webp' : '.jpg';
+    const ext = originalExt || mimeExt;
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+  }
+});
 
 const upload = multer({
-  dest: path.join(process.cwd(), 'data', 'media'),
+  storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
 });
 
