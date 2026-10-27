@@ -805,6 +805,37 @@
       }
     }
 
+    function formatMYT(dateStr, timeOnly = false) {
+      if (!dateStr) return 'N/A';
+      let str = String(dateStr).trim();
+      let iso = str.includes('T') ? (str.endsWith('Z') || str.includes('+') ? str : str + 'Z') : str.replace(' ', 'T') + 'Z';
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return dateStr;
+      
+      const options = {
+        timeZone: 'Asia/Kuala_Lumpur',
+        hour12: true,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      };
+      if (!timeOnly) {
+        options.day = '2-digit';
+        options.month = '2-digit';
+        options.year = 'numeric';
+      }
+      return new Intl.DateTimeFormat('en-MY', options).format(d);
+    }
+
+    function formatCampaignTitle(name) {
+      if (!name) return '';
+      const match = name.match(/^Broadcast\s+(\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z)?)$/);
+      if (match) {
+        return `Broadcast ${formatMYT(match[1])}`;
+      }
+      return name;
+    }
+
     function renderCampaignsList(campaigns) {
       const active = campaigns.filter(c => c.status === 'sending' || c.status === 'draft');
       const recent = campaigns.filter(c => c.status === 'completed' || c.status === 'failed').slice(0, 20);
@@ -813,9 +844,9 @@
         <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
             <div>
-              <strong style="font-size: 14px;">${escapeHtml(c.name)}</strong>
+              <strong style="font-size: 14px;">${escapeHtml(formatCampaignTitle(c.name))}</strong>
               <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
-                ${c.started_at ? `Started: ${new Date(c.started_at).toLocaleString()}` : (c.created_at ? new Date(c.created_at).toLocaleString() : '')}
+                ${c.started_at ? `Started: ${formatMYT(c.started_at)} (MYT)` : (c.created_at ? formatMYT(c.created_at) + ' (MYT)' : '')}
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -891,7 +922,7 @@
             <td style="padding:4px;border-bottom:1px solid var(--border);">${escapeHtml(r.phone)}</td>
             <td style="padding:4px;border-bottom:1px solid var(--border);color:${statusColor};font-weight:bold;">${escapeHtml(r.status.toUpperCase())}</td>
             <td style="padding:4px;border-bottom:1px solid var(--border);color:${r.status === 'failed' ? 'var(--danger)' : 'var(--text)'};">${escapeHtml(r.error || (r.status !== 'failed' ? 'Success' : 'Unknown'))}</td>
-            <td style="padding:4px;border-bottom:1px solid var(--border);">${r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : 'N/A'}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);">${r.sent_at ? formatMYT(r.sent_at, true) : 'N/A'}</td>
           </tr>`;
         });
         html += '</table>';
@@ -912,13 +943,13 @@
       }
       
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Phone,Status,Reason/Error,Time\n";
+      csvContent += "Phone,Status,Reason/Error,Time (MYT)\n";
       
       currentLogsData.forEach(r => {
         let phone = r.phone || '';
         let status = r.status ? r.status.toUpperCase() : '';
         let error = r.error || (r.status !== 'failed' ? 'Success' : 'Unknown');
-        let time = r.sent_at ? new Date(r.sent_at).toLocaleTimeString() : 'N/A';
+        let time = r.sent_at ? formatMYT(r.sent_at, true) : 'N/A';
         
         // Escape quotes and wrap in quotes for safety
         const escapeCSV = (str) => '"' + String(str).replace(/"/g, '""') + '"';

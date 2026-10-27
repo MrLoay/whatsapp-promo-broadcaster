@@ -51,6 +51,24 @@ campaignsRouter.get('/campaigns/:id/export.csv', (req, res) => {
 
   const recipients = getCampaignRecipients(db, req.session.username!, campaignId, isAdmin);
 
+  function toMalaysiaTime(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    let str = String(dateStr).trim();
+    let iso = str.includes('T') ? (str.endsWith('Z') || str.includes('+') ? str : str + 'Z') : str.replace(' ', 'T') + 'Z';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return dateStr;
+    return new Intl.DateTimeFormat('en-MY', {
+      timeZone: 'Asia/Kuala_Lumpur',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    }).format(d);
+  }
+
   const escapeCSV = (str: any) => {
     if (str === null || str === undefined) return '""';
     return '"' + String(str).replace(/"/g, '""') + '"';
@@ -64,9 +82,9 @@ campaignsRouter.get('/campaigns/:id/export.csv', (req, res) => {
       escapeCSV(r.name || ''),
       escapeCSV(r.status ? r.status.toUpperCase() : ''),
       escapeCSV(errorMsg),
-      escapeCSV(r.sent_at || ''),
-      escapeCSV(r.delivered_at || ''),
-      escapeCSV(r.read_at || '')
+      escapeCSV(toMalaysiaTime(r.sent_at)),
+      escapeCSV(toMalaysiaTime(r.delivered_at)),
+      escapeCSV(toMalaysiaTime(r.read_at))
     ].join(',') + '\r\n';
   }
 

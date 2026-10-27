@@ -77,6 +77,21 @@ export function createQuickCampaign(
   return createCampaign(db, owner, name, template.id, []);
 }
 
+function getMalaysiaBroadcastName(): string {
+  const d = new Date();
+  const formatted = new Intl.DateTimeFormat('en-MY', {
+    timeZone: 'Asia/Kuala_Lumpur',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).format(d);
+  return `Broadcast ${formatted}`;
+}
+
 /** Creates a quick campaign from just a message and sends it immediately -- the one-click flow from the Home page. */
 export async function sendNow(
   db: Database.Database,
@@ -94,7 +109,7 @@ export async function sendNow(
     finalMessage = `{Hello|Hi|Hey|Greetings} {{name}},\n\n${finalMessage}`;
   }
 
-  const campaign = createQuickCampaign(db, owner, `Broadcast ${new Date().toISOString()}`, finalMessage, mediaPath, mediaMimeType);
+  const campaign = createQuickCampaign(db, owner, getMalaysiaBroadcastName(), finalMessage, mediaPath, mediaMimeType);
 
   if (config.dryRun) {
     const summary = await sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId);
