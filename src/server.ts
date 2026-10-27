@@ -52,6 +52,36 @@ export function createApp(): Express {
     }
   });
 
+  // Loopback-only helper to trigger clean account connection
+  app.post('/api/internal/connect-account', async (req, res) => {
+    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    if (!isLocal) return res.status(403).json({ error: 'Local only' });
+    const { accountId } = req.body ?? {};
+    if (!accountId) return res.status(400).json({ error: 'accountId required' });
+    try {
+      const { getDb } = require('./db');
+      const { getAccountById } = require('./services/accounts');
+      const { startWebJsListeners } = require('./whatsapp/webjs-listeners');
+      const { disconnect, getConnectionState } = require('./whatsapp/webjs-client');
+      const db = getDb();
+      const account = getAccountById(db, accountId);
+      if (!account) return res.status(404).json({ error: 'Account not found' });
+      await disconnect(accountId, true);
+      startWebJsListeners(db, accountId, account.proxy_url);
+      res.json({ ok: true, accountId, state: getConnectionState(accountId) });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
+  });
+
+  // Loopback-only helper to query live connection state
+  app.get('/api/internal/account-state/:id', (req, res) => {
+    const isLocal = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    if (!isLocal) return res.status(403).json({ error: 'Local only' });
+    const { getConnectionState } = require('./whatsapp/webjs-client');
+    res.json({ ok: true, state: getConnectionState(req.params.id) });
+  });
+
   // Static dashboard pages are served (and requests for them terminated)
   // before the API routers below, so login.html/style.css/etc. are reachable
   // without a session -- the pages themselves hold no data, they just call
