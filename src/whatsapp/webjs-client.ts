@@ -135,14 +135,10 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
     // Clean up any stale Chromium Singleton locks left from previous crashes or migrations
     try {
       const sessionDir = path.join(config.whatsapp.webjsSessionPath, 'session-' + safeClientId);
-      if (fs.existsSync(sessionDir)) {
-        ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach((lockFile) => {
-          const lockPath = path.join(sessionDir, lockFile);
-          if (fs.existsSync(lockPath)) {
-            try { fs.unlinkSync(lockPath); } catch {}
-          }
-        });
-      }
+      ['SingletonLock', 'SingletonCookie', 'SingletonSocket'].forEach((lockFile) => {
+        const lockPath = path.join(sessionDir, lockFile);
+        try { fs.unlinkSync(lockPath); } catch {}
+      });
     } catch {}
 
     s.client = new Client({
@@ -274,7 +270,7 @@ export async function ensureReady(owner: string, proxyUrl?: string | null): Prom
 }
 
 /** Logs out of WhatsApp (clears the saved session -- next connect needs a fresh QR scan) and resets state. */
-export async function disconnect(owner: string): Promise<void> {
+export async function disconnect(owner: string, purgeSession: boolean = true): Promise<void> {
   const s = getSession(owner);
   const c = s.client;
   s.client = null;
@@ -306,6 +302,16 @@ export async function disconnect(owner: string): Promise<void> {
     } catch {}
     try {
       await withTimeout(c.destroy(), 1000);
+    } catch {}
+  }
+
+  if (purgeSession) {
+    try {
+      const safeClientId = owner.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const sessionDir = path.join(config.whatsapp.webjsSessionPath, 'session-' + safeClientId);
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+      }
     } catch {}
   }
 }

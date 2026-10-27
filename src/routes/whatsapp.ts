@@ -48,13 +48,23 @@ whatsappRouter.get('/whatsapp/status', async (req, res) => {
   });
 });
 
-whatsappRouter.post('/whatsapp/connect', (req, res) => {
+whatsappRouter.post('/whatsapp/connect', async (req, res) => {
   if (config.dryRun) {
     return res.status(400).json({ error: 'Set DRY_RUN=false before connecting a real WhatsApp session' });
   }
   const db = getDb();
   const accountId = req.body?.id || req.session.username!;
   const proxyUrl = req.body?.proxy_url;
+
+  // If the account is currently disconnected or unauthenticated, clean up any stale
+  // or corrupt session profile so Puppeteer can render a fresh QR code without hanging.
+  const existing = getAccountById(db, accountId);
+  const state = getConnectionState(accountId);
+  if ((!existing || existing.status === 'DISCONNECTED') && state.status !== 'ready' && state.status !== 'authenticated') {
+    try {
+      await disconnect(accountId, true);
+    } catch {}
+  }
 
   const account = upsertAccount(db, accountId, {
     account_name: req.body?.account_name || accountId,

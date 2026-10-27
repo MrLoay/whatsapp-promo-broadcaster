@@ -210,7 +210,7 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
       // Forcibly destroy failed client & kill browser to prevent zombie memory leaks
       try {
         const { disconnect } = require('./webjs-client');
-        await disconnect(owner);
+        await disconnect(owner, attempt >= maxAttempts);
       } catch {}
 
       if (attempt >= maxAttempts) {
