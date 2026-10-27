@@ -74,12 +74,13 @@ campaignsRouter.get('/campaigns/:id/export.csv', (req, res) => {
     return '"' + String(str).replace(/"/g, '""') + '"';
   };
 
-  let csv = 'Phone,Name,Status,Reason/Error,Sent At,Delivered At,Read At\r\n';
+  let csv = 'Phone,Name,WhatsApp Account,Status,Reason/Error,Sent At,Delivered At,Read At\r\n';
   for (const r of recipients) {
     const errorMsg = r.error || (r.status !== 'failed' ? 'Success' : 'Unknown');
     csv += [
       escapeCSV(r.phone),
       escapeCSV(r.name || ''),
+      escapeCSV(r.account_name || r.account_id || ''),
       escapeCSV(r.status ? r.status.toUpperCase() : ''),
       escapeCSV(errorMsg),
       escapeCSV(toMalaysiaTime(r.sent_at)),

@@ -168,6 +168,8 @@ export interface CampaignRecipientDetail {
   sent_at: string | null;
   delivered_at: string | null;
   read_at: string | null;
+  account_id: string | null;
+  account_name: string | null;
 }
 
 export function getCampaignRecipients(
@@ -180,9 +182,11 @@ export function getCampaignRecipients(
   const params = isAdmin ? [campaignId] : [campaignId, owner];
   return db
     .prepare(
-      `SELECT cr.id, cr.contact_id, COALESCE(ct.phone, 'Unknown') as phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at
+      `SELECT cr.id, cr.contact_id, COALESCE(ct.phone, 'Unknown') as phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at,
+              cr.account_id, COALESCE(cr.account_name, acc.account_name, cr.account_id) as account_name
        FROM campaign_recipients cr
        LEFT JOIN contacts ct ON ct.id = cr.contact_id
+       LEFT JOIN accounts acc ON acc.id = cr.account_id
        JOIN campaigns c ON c.id = cr.campaign_id
        WHERE ${whereClause}
        ORDER BY cr.id`
@@ -292,6 +296,14 @@ export async function sendCampaign(
     const userRow = db.prepare('SELECT role FROM users WHERE username = ?').get(owner) as { role?: string } | undefined;
     const isAdmin = userRow?.role === 'admin';
 
+    const accountNameMap = new Map<string, string>();
+    try {
+      const accRows = db.prepare('SELECT id, account_name FROM accounts').all() as { id: string; account_name?: string }[];
+      for (const row of accRows) {
+        accountNameMap.set(row.id, row.account_name || row.id);
+      }
+    } catch {}
+
     // In-memory queue of recipient tasks for thread-safe claiming across concurrent workers
     const recipientTasks = db.prepare(
       `SELECT cr.id, cr.contact_id, ct.phone, ct.name
@@ -314,6 +326,7 @@ export async function sendCampaign(
     // Shared worker loop for each active account
     const runAccountWorker = async (accId: string) => {
       let isFirst = true;
+      const accDisplayName = accountNameMap.get(accId) || accId;
 
       while (true) {
         // Check if campaign was stopped or paused
@@ -383,8 +396,8 @@ export async function sendCampaign(
           const result = await sendCampaignMessage(accId, task.phone, template, variableValues);
 
           db.prepare(
-            `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now') WHERE id = ?`
-          ).run(result.id, task.id);
+            `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
+          ).run(result.id, accId, accDisplayName, task.id);
           summary.sent++;
         } catch (err: any) {
           const errorMsg = err?.message || String(err);
@@ -393,7 +406,7 @@ export async function sendCampaign(
 
           if (isInvalidNumber) {
             // Unregistered WhatsApp number, fail permanently
-            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ? WHERE id = ?`).run(errorMsg, task.id);
+            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
             summary.failed++;
           } else if (isAccountIssue) {
             // Account dropped or hit CDP timeout -- DO NOT FAIL CONTACT!
@@ -408,7 +421,7 @@ export async function sendCampaign(
               break; // Stop worker on credit exhaustion
             }
             // General failure: fail permanently
-            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ? WHERE id = ?`).run(errorMsg, task.id);
+            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
             summary.failed++;
           }
         }

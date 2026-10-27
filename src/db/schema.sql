@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS campaign_recipients (
   sent_at TEXT,
   delivered_at TEXT,
   read_at TEXT,
+  account_id TEXT,
+  account_name TEXT,
   UNIQUE (campaign_id, contact_id)
 );
 
