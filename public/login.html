@@ -9,6 +9,13 @@
 <body>
   <div class="login-wrap">
     <div class="card login-card">
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+        <select id="loginLangSelect" style="font-size: 12px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);">
+          <option value="en">EN</option>
+          <option value="ms">Bahasa Melayu</option>
+          <option value="zh">中文</option>
+        </select>
+      </div>
       <h1 data-i18n="login.heading">Boutique Broadcast</h1>
       <form id="loginForm">
         <label for="username" data-i18n="login.username">Username</label>
@@ -22,6 +29,14 @@
   </div>
   <script src="i18n.js"></script>
   <script>
+    const loginLangSelect = document.getElementById('loginLangSelect');
+    if (loginLangSelect) {
+      loginLangSelect.value = getLang();
+      loginLangSelect.onchange = (e) => {
+        setLang(e.target.value);
+        applyTranslations();
+      };
+    }
     applyTranslations();
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {

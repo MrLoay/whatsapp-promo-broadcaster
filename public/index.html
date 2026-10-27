@@ -23,17 +23,17 @@
           <div style="margin-bottom: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--card);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
               <div>
-                <label style="font-weight: 700; font-size: 14px; margin: 0; display: block; color: var(--text);">
+                <label style="font-weight: 700; font-size: 14px; margin: 0; display: block; color: var(--text);" data-i18n="home.accountMode.title">
                   🎯 Which Accounts Should Send This Broadcast?
                 </label>
-                <span class="muted" style="font-size: 12px;">Choose whether to blast using all ready accounts or pick specific batches.</span>
+                <span class="muted" style="font-size: 12px;" data-i18n="home.accountMode.desc">Choose whether to blast using all ready accounts or pick specific batches.</span>
               </div>
               <!-- Big prominent switcher tabs -->
               <div style="display: flex; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 3px; gap: 4px;">
-                <button type="button" id="tabModeAll" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: #2563eb; color: white; cursor: pointer; transition: all 0.2s;">
+                <button type="button" id="tabModeAll" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: #2563eb; color: white; cursor: pointer; transition: all 0.2s;" data-i18n="home.accountMode.tabAll">
                   🌐 All Ready Accounts
                 </button>
-                <button type="button" id="tabModeCustom" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: transparent; color: var(--text); cursor: pointer; transition: all 0.2s;">
+                <button type="button" id="tabModeCustom" style="font-size: 12px; padding: 7px 14px; border-radius: 6px; border: none; font-weight: 700; background: transparent; color: var(--text); cursor: pointer; transition: all 0.2s;" data-i18n="home.accountMode.tabCustom">
                   🎯 Choose Specific Accounts / Batches
                 </button>
               </div>
@@ -46,29 +46,29 @@
             <div id="accDropdownContainer" style="padding: 12px 14px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);">
               <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
                 <div>
-                  <div style="font-size: 13px; font-weight: 600; color: #16a34a;">✓ Blasting across all available accounts in Round-Robin</div>
-                  <div class="muted" style="font-size: 12px;">Messages will automatically rotate evenly across every connected WhatsApp phone.</div>
+                  <div style="font-size: 13px; font-weight: 600; color: #16a34a;" data-i18n="home.accountMode.roundRobin">✓ Blasting across all available accounts in Round-Robin</div>
+                  <div class="muted" style="font-size: 12px;" data-i18n="home.accountMode.roundRobinDesc">Messages will automatically rotate evenly across every connected WhatsApp phone.</div>
                 </div>
                 <select id="accountSelect" name="account" style="padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 13px; max-width: 380px;">
-                  <option value="all">All Ready Accounts (Round-Robin)</option>
+                  <option value="all" data-i18n="home.accountMode.optAll">All Ready Accounts (Round-Robin)</option>
                 </select>
               </div>
             </div>
 
             <!-- Mode 2: Multi-select drawer with prominent batches -->
             <div id="accMultiSelectContainer" style="display: none; border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: var(--bg);">
-              <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #2563eb;">
+              <div style="font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #2563eb;" data-i18n="home.batch.title">
                 ⚡ Quick Batch Selector:
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
                 <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                  <button type="button" class="secondary" id="btnSelectBatch1" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 1 (1–15)</button>
-                  <button type="button" class="secondary" id="btnSelectBatch2" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 2 (16–30)</button>
-                  <button type="button" class="secondary" id="btnSelectBatch3" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #ec4899; color: white; border: none; border-radius: 6px; cursor: pointer;">📦 Batch 3 (31–48)</button>
-                  <button type="button" class="secondary" id="btnSelectAllReady" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">✓ Select All Ready</button>
-                  <button type="button" class="secondary" id="btnClearAccSelection" style="font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;">✕ Deselect All</button>
+                  <button type="button" class="secondary" id="btnSelectBatch1" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="home.batch.b1">📦 Batch 1 (1–15)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch2" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="home.batch.b2">📦 Batch 2 (16–30)</button>
+                  <button type="button" class="secondary" id="btnSelectBatch3" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #ec4899; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="home.batch.b3">📦 Batch 3 (31–48)</button>
+                  <button type="button" class="secondary" id="btnSelectAllReady" style="font-size: 12px; padding: 5px 12px; font-weight: 600; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="home.batch.allReady">✓ Select All Ready</button>
+                  <button type="button" class="secondary" id="btnClearAccSelection" style="font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;" data-i18n="home.batch.deselect">✕ Deselect All</button>
                 </div>
-                <input type="text" id="accSearchInput" placeholder="🔍 Filter accounts by name or no..." style="font-size: 12px; padding: 6px 12px; width: 220px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text);" />
+                <input type="text" id="accSearchInput" data-i18n-placeholder="home.batch.filterPlaceholder" placeholder="🔍 Filter accounts by name or no..." style="font-size: 12px; padding: 6px 12px; width: 220px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text);" />
               </div>
 
               <div id="accCheckboxesList" style="max-height: 260px; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 4px;"></div>
@@ -81,32 +81,32 @@
           </div>
 
           <div style="margin-bottom: 16px;">
-            <label for="delaySelect" style="font-weight: 600; display: block; margin-bottom: 4px;">Sending Speed / Delay Mode:</label>
+            <label for="delaySelect" style="font-weight: 600; display: block; margin-bottom: 4px;" data-i18n="home.speed.label">Sending Speed / Delay Mode:</label>
             <select id="delaySelect" name="delayMode" style="width: 100%; max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-              <option value="auto">Automatic (Recommended: Multi-Account Safe ~10-18s per acc)</option>
-              <option value="moderate">Moderate Safe Mode (12 to 30 sec delay per msg)</option>
-              <option value="old_acc">High Ban-Protection Mode (2 to 5 min delay per msg)</option>
-              <option value="custom">Custom Fixed Delay (seconds)</option>
+              <option value="auto" data-i18n="home.speed.auto">Automatic (Recommended: Multi-Account Safe ~10-18s per acc)</option>
+              <option value="moderate" data-i18n="home.speed.moderate">Moderate Safe Mode (12 to 30 sec delay per msg)</option>
+              <option value="old_acc" data-i18n="home.speed.old">High Ban-Protection Mode (2 to 5 min delay per msg)</option>
+              <option value="custom" data-i18n="home.speed.custom">Custom Fixed Delay (seconds)</option>
             </select>
           </div>
 
           <div id="customDelayContainer" style="display: none; margin-bottom: 16px;">
-            <label for="customDelayInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Custom Delay (seconds):</label>
+            <label for="customDelayInput" style="font-weight: 600; display: block; margin-bottom: 4px;" data-i18n="home.speed.customDelayLabel">Custom Delay (seconds):</label>
             <input type="number" id="customDelayInput" name="customDelay" min="1" max="600" value="120" style="width: 100%; max-width: 200px; padding: 8px;" />
           </div>
 
           <div style="margin-bottom: 16px;">
-            <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;">Attach Image or Video (Optional):</label>
+            <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;" data-i18n="home.media.label">Attach Image or Video (Optional):</label>
             <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
           </div>
 
           <div style="margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between;">
-            <label style="font-weight: 600;">Message Content (Multiple Variations):</label>
-            <span class="muted" style="font-size: 12px;">Reduces ban risk</span>
+            <label style="font-weight: 600;" data-i18n="home.variations.label">Message Content (Multiple Variations):</label>
+            <span class="muted" style="font-size: 12px;" data-i18n="home.variations.desc">Reduces ban risk</span>
           </div>
           <div id="msgTabs" style="display: flex; gap: 4px; margin-bottom: 8px;">
-            <button type="button" class="secondary active-tab" data-idx="0" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #2563eb; color: white;">Message 1</button>
-            <button type="button" class="secondary" id="addMsgBtn" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">+ Add</button>
+            <button type="button" class="secondary active-tab" data-idx="0" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #2563eb; color: white;" data-i18n="home.variations.msg1">Message 1</button>
+            <button type="button" class="secondary" id="addMsgBtn" style="padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0;" data-i18n="home.variations.add">+ Add</button>
           </div>
           <div id="msgContainers">
             <textarea name="message_0" id="message_0" required data-i18n-placeholder="home.send.placeholder" placeholder="Hi {{name}}, enjoy 20% off this week!" style="border-top-left-radius: 0;"></textarea>
@@ -152,7 +152,7 @@
           <code>phone,name<br />+15551234567,Alice<br />+15559876543,Bob</code>
         </div>
         <div style="margin-bottom: 16px;">
-          <label style="font-weight: 600; display: block; margin-bottom: 6px;">Upload CSV or TXT File:</label>
+          <label style="font-weight: 600; display: block; margin-bottom: 6px;" data-i18n="contacts.uploadLabel">Upload CSV or TXT File:</label>
           <input type="file" id="csvFileInput" accept=".csv, .txt, text/csv, text/plain" />
         </div>
         <form id="importForm">
@@ -167,9 +167,9 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
           <h2 style="margin: 0;" data-i18n="contacts.table.heading">All contacts</h2>
           <div style="display: flex; gap: 8px;">
-            <button id="deleteSelectedBtn" class="danger" style="display: none;">Delete Selected</button>
-            <button id="exportContactsBtn" style="background: #3b82f6; color: white;">Export Contacts</button>
-            <button id="syncWhatsappBtn" style="background: #25D366; color: white;">Sync Contacts from WhatsApp</button>
+            <button id="deleteSelectedBtn" class="danger" style="display: none;" data-i18n="contacts.deleteSelected">Delete Selected</button>
+            <button id="exportContactsBtn" style="background: #3b82f6; color: white;" data-i18n="contacts.export">Export Contacts</button>
+            <button id="syncWhatsappBtn" style="background: #25D366; color: white;" data-i18n="contacts.sync">Sync Contacts from WhatsApp</button>
           </div>
         </div>
         <div id="syncStatus" class="muted" style="margin-bottom: 10px;"></div>
@@ -191,14 +191,14 @@
     <!-- ==================== WHATSAPP ACCOUNTS VIEW ==================== -->
     <div id="view-whatsapp" style="display: none;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
-        <h1 style="margin:0;">WhatsApp Accounts & Proxies</h1>
+        <h1 style="margin:0;" data-i18n="wa.heading">WhatsApp Accounts</h1>
         <div style="display: flex; gap: 8px;">
-          <button id="openBulkAddModalBtn" class="secondary">+ Bulk Add</button>
-          <button id="openAddModalBtn">+ Add Account</button>
+          <button id="openBulkAddModalBtn" class="secondary" data-i18n="wa.bulkAddBtn">+ Bulk Add Accounts</button>
+          <button id="openAddModalBtn" data-i18n="wa.addBtn">+ Add Account</button>
         </div>
       </div>
 
-      <div id="needsLiveMode" style="display:none;" class="card muted">
+      <div id="needsLiveMode" style="display:none;" class="card muted" data-i18n="wa.liveModeWarning">
         Test mode (DRY_RUN) is currently on. Turn it off to connect real WhatsApp sessions with proxies.
       </div>
 
@@ -206,26 +206,26 @@
       <div style="margin-bottom: 16px; padding: 14px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px;">
         <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 10px;">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span style="font-weight: 700; font-size: 13px;">Sort:</span>
-            <button type="button" id="btnSortAZ" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 700; background: #2563eb; color: white; border-radius: 6px; cursor: pointer; border: none;">🔤 Sort A–Z (1 to 48)</button>
-            <button type="button" id="btnSortReady" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;">🟢 Ready First</button>
-            <button type="button" id="btnSortDisconnected" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;">⚪ Disconnected First</button>
+            <span style="font-weight: 700; font-size: 13px;" data-i18n="wa.sort.label">Sort:</span>
+            <button type="button" id="btnSortAZ" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 700; background: #2563eb; color: white; border-radius: 6px; cursor: pointer; border: none;" data-i18n="wa.sort.az">🔤 Sort A–Z (1 to 48)</button>
+            <button type="button" id="btnSortReady" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;" data-i18n="wa.sort.ready">🟢 Ready First</button>
+            <button type="button" id="btnSortDisconnected" class="secondary" style="font-size: 12px; padding: 6px 14px; font-weight: 600; border-radius: 6px; cursor: pointer;" data-i18n="wa.sort.disconnected">⚪ Disconnected First</button>
           </div>
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="waSearchInput" placeholder="🔍 Search account or phone..." style="font-size: 13px; padding: 6px 12px; width: 230px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);" />
+            <input type="text" id="waSearchInput" data-i18n-placeholder="wa.search.placeholder" placeholder="🔍 Search account or phone..." style="font-size: 13px; padding: 6px 12px; width: 230px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text);" />
             <span id="waAccountsCountBadge" style="font-size: 12px; font-weight: 600; color: var(--muted); padding: 5px 10px; background: var(--bg); border-radius: 6px; border: 1px solid var(--border);">Loading...</span>
           </div>
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border);">
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <span style="font-weight: 700; font-size: 12px; color: var(--muted);">⚡ Quick Connect:</span>
-            <button type="button" id="btnConnectBatch1" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">Connect Batch 1 (1–15)</button>
-            <button type="button" id="btnConnectBatch2" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;">Connect Batch 2 (16–30)</button>
-            <button type="button" id="btnConnectBatch3" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #ec4899; color: white; border: none; border-radius: 6px; cursor: pointer;">Connect Batch 3 (31–48)</button>
-            <button type="button" id="btnRetryErrors" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; border-radius: 6px; cursor: pointer;">🔄 Retry All Errors</button>
+            <span style="font-weight: 700; font-size: 12px; color: var(--muted);" data-i18n="wa.quickConnect.label">⚡ Quick Connect:</span>
+            <button type="button" id="btnConnectBatch1" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="wa.connect.b1">Connect Batch 1 (1–15)</button>
+            <button type="button" id="btnConnectBatch2" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="wa.connect.b2">Connect Batch 2 (16–30)</button>
+            <button type="button" id="btnConnectBatch3" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; background: #ec4899; color: white; border: none; border-radius: 6px; cursor: pointer;" data-i18n="wa.connect.b3">Connect Batch 3 (31–48)</button>
+            <button type="button" id="btnRetryErrors" class="secondary" style="font-size: 11px; padding: 5px 10px; font-weight: 600; border-radius: 6px; cursor: pointer;" data-i18n="wa.connect.retry">🔄 Retry All Errors</button>
           </div>
           <div>
-            <button type="button" id="btnDisconnectAll" class="danger" style="font-size: 11px; padding: 5px 12px; font-weight: 600; border-radius: 6px; cursor: pointer; background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d;">🛑 Disconnect All (Free RAM)</button>
+            <button type="button" id="btnDisconnectAll" class="danger" style="font-size: 11px; padding: 5px 12px; font-weight: 600; border-radius: 6px; cursor: pointer; background: #450a0a; color: #fca5a5; border: 1px solid #7f1d1d;" data-i18n="wa.connect.disconnectAll">🛑 Disconnect All (Free RAM)</button>
           </div>
         </div>
       </div>
@@ -237,23 +237,23 @@
       <!-- Add Account Modal -->
       <div class="modal-backdrop" id="addModal" style="display: none;">
         <div class="modal">
-          <h2>Add WhatsApp Account</h2>
+          <h2 data-i18n="wa.add.title">Add WhatsApp Account</h2>
           <form id="addAccountForm">
             <div style="margin-bottom: 12px;">
-              <label>Account ID / Username</label>
+              <label data-i18n="wa.add.id">Account ID / Username</label>
               <input type="text" name="id" required placeholder="e.g. store_boutique_1" style="width:100%;" />
             </div>
             <div style="margin-bottom: 12px;">
-              <label>Account Display Name</label>
+              <label data-i18n="wa.add.name">Account Display Name</label>
               <input type="text" name="account_name" required placeholder="e.g. Downtown Boutique" style="width:100%;" />
             </div>
             <div style="margin-bottom: 16px;">
-              <label>Dedicated Proxy URL (Optional)</label>
+              <label data-i18n="wa.add.proxy">Dedicated Proxy URL (Optional)</label>
               <input type="text" name="proxy_url" placeholder="http://user:pass@1.2.3.4:8080 or socks5://..." style="width:100%;" />
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
-              <button type="button" class="secondary" id="closeAddModalBtn">Cancel</button>
-              <button type="submit">Connect Account</button>
+              <button type="button" class="secondary" id="closeAddModalBtn" data-i18n="common.cancel">Cancel</button>
+              <button type="submit" data-i18n="wa.add.submit">Connect Account</button>
             </div>
           </form>
         </div>
@@ -262,8 +262,8 @@
       <!-- Bulk Add Modal -->
       <div class="modal-backdrop" id="bulkAddModal" style="display: none;">
         <div class="modal" style="max-width: 600px;">
-          <h2>Bulk Add Accounts</h2>
-          <p class="muted" style="font-size: 14px; margin-bottom: 12px;">
+          <h2 data-i18n="wa.bulk.title">Bulk Add Accounts</h2>
+          <p class="muted" style="font-size: 14px; margin-bottom: 12px;" data-i18n="wa.bulk.desc">
             Paste a list of accounts and proxies. Format: <code>id,proxy_url</code> (one per line).<br>
             Example:<br>
             <code>2,http://user:pass@1.1.1.1:8080</code><br>
@@ -272,8 +272,8 @@
           <form id="bulkAddForm">
             <textarea name="bulkData" rows="10" style="width: 100%; margin-bottom: 16px; font-family: monospace; padding: 8px;" placeholder="id,proxy_url"></textarea>
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
-              <button type="button" class="secondary" id="closeBulkAddModalBtn">Cancel</button>
-              <button type="submit">Add All</button>
+              <button type="button" class="secondary" id="closeBulkAddModalBtn" data-i18n="common.cancel">Cancel</button>
+              <button type="submit" data-i18n="wa.bulk.submit">Add All</button>
             </div>
           </form>
         </div>
@@ -283,32 +283,32 @@
     <!-- ADMIN PANEL VIEW -->
     <div id="view-admin" style="display: none; padding: 20px;">
       <h2><span data-i18n="nav.admin">Admin Panel</span></h2>
-      <p class="muted">Manage customers and their credit balances.</p>
+      <p class="muted" data-i18n="admin.desc">Manage customers and their credit balances.</p>
       
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px;">
-        <h3>Create New Customer</h3>
+        <h3 data-i18n="admin.createTitle">Create New Customer</h3>
         <form id="createCustomerForm" style="display: flex; gap: 12px; align-items: flex-end; margin-top: 12px;">
           <div style="flex: 1;">
-            <label>Username</label>
+            <label data-i18n="admin.thUsername">Username</label>
             <input type="text" id="newCustomerUser" required style="width:100%;" />
           </div>
           <div style="flex: 1;">
-            <label>Password</label>
+            <label data-i18n="login.password">Password</label>
             <input type="password" id="newCustomerPass" required style="width:100%;" />
           </div>
           <div style="flex: 1;">
-            <label>Role</label>
+            <label data-i18n="admin.thRole">Role</label>
             <select id="newCustomerRole" style="width:100%;">
-              <option value="customer">Customer</option>
-              <option value="admin">Super Admin</option>
+              <option value="customer" data-i18n="admin.roleCustomer">Customer</option>
+              <option value="admin" data-i18n="admin.roleAdmin">Super Admin</option>
             </select>
           </div>
-          <button type="submit">Create</button>
+          <button type="submit" data-i18n="admin.createBtn">Create</button>
         </form>
       </div>
 
       <div style="background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px;">
-        <h3>Registered Users</h3>
+        <h3 data-i18n="admin.registeredUsers">Registered Users</h3>
         <div id="usersList" style="margin-top: 16px;">Loading...</div>
       </div>
     </div>
@@ -362,12 +362,18 @@
         const users = await api('/admin/users');
         const list = document.getElementById('usersList');
         if (users.length === 0) {
-          list.innerHTML = '<p class="muted">No users found.</p>';
+          list.innerHTML = `<p class="muted">${t('admin.noUsers')}</p>`;
           return;
         }
         
         let html = '<table style="width:100%; border-collapse:collapse;">';
-        html += '<tr><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Username</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Role</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Credits</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Cost/Msg</th><th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">Actions</th></tr>';
+        html += `<tr>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thUsername')}</th>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thRole')}</th>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCredits')}</th>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCost')}</th>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thActions')}</th>
+        </tr>`;
         
         users.forEach(u => {
           html += `<tr>
@@ -376,9 +382,9 @@
             <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#10b981;">${u.credits !== undefined && u.credits !== null ? Number(u.credits).toFixed(2) : '0.00'}</td>
             <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#f59e0b;">${u.cost_per_msg !== undefined && u.cost_per_msg !== null ? Number(u.cost_per_msg).toFixed(2) : '0.13'}</td>
             <td style="padding:8px; border-bottom:1px solid var(--border);">
-              <button onclick="addCredits('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px;">+ Credits</button>
-              <button onclick="setCost('${escapeHtml(u.username)}', ${u.cost_per_msg ?? 0.13})" style="padding:4px 8px; font-size:11px; background:#f59e0b; color:white; border:none; border-radius:4px;">Set Cost</button>
-              <button onclick="deleteUser('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px; background:var(--danger); border:none; color:white;">Delete</button>
+              <button onclick="addCredits('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px;">${t('admin.addCreditsBtn')}</button>
+              <button onclick="setCost('${escapeHtml(u.username)}', ${u.cost_per_msg ?? 0.13})" style="padding:4px 8px; font-size:11px; background:#f59e0b; color:white; border:none; border-radius:4px;">${t('admin.setCostBtn')}</button>
+              <button onclick="deleteUser('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px; background:var(--danger); border:none; color:white;">${t('admin.deleteBtn')}</button>
             </td>
           </tr>`;
         });
@@ -414,7 +420,7 @@
     }
 
     async function addCredits(username) {
-      const amountStr = prompt(`Add credits for ${username} (e.g. 500, or -100 to remove):`, '100');
+      const amountStr = prompt(t('admin.promptCredits', { username }), '100');
       if (!amountStr) return;
       const amount = parseInt(amountStr, 10);
       if (isNaN(amount)) return alert('Invalid amount');
@@ -431,7 +437,7 @@
     }
 
     async function setCost(username, currentCost) {
-      const amt = prompt(`Enter new Cost Per Message for ${username} (Current: ${currentCost}):`, currentCost);
+      const amt = prompt(t('admin.promptCost', { username, current: currentCost }), currentCost);
       if (amt === null || amt.trim() === '') return;
       const num = parseFloat(amt);
       if (isNaN(num) || num < 0) {
@@ -450,7 +456,7 @@
     }
 
     async function deleteUser(username) {
-      if (!confirm(`Are you sure you want to delete ${username}? This will also delete their credits.`)) return;
+      if (!confirm(t('admin.confirmDeleteUser', { username }))) return;
       try {
         await api('/admin/users/' + encodeURIComponent(username), { method: 'DELETE' });
         loadAdminUsers();
@@ -518,7 +524,7 @@
         const select = document.getElementById('accountSelect');
         const readyCount = globalAccounts.filter(a => a.is_active && a.liveStatus === 'ready').length;
         if (select) {
-          select.innerHTML = `<option value="all">All Ready Accounts (${readyCount} ready in Round-Robin)</option>`;
+          select.innerHTML = `<option value="all">${t('home.accountMode.optAll')} (${readyCount} READY)</option>`;
           globalAccounts.forEach((acc) => {
             if (!acc.is_active) return;
             const statusText = acc.liveStatus === 'ready' ? 'READY' : (acc.liveStatus && acc.liveStatus !== 'idle' ? acc.liveStatus.toUpperCase() : 'OFFLINE');
@@ -550,7 +556,7 @@
       });
 
       if (filtered.length === 0) {
-        list.innerHTML = `<div class="muted" style="padding: 10px; text-align: center; font-size: 13px;">No matching accounts found</div>`;
+        list.innerHTML = `<div class="muted" style="padding: 10px; text-align: center; font-size: 13px;">${t('wa.noMatching')}</div>`;
         return;
       }
 
@@ -583,7 +589,7 @@
       const summaryEl = document.getElementById('accSelectionSummary');
       const loadEl = document.getElementById('accLoadSummary');
       if (summaryEl) {
-        summaryEl.textContent = `${totalSelected} accounts selected (${readySelected} ready)`;
+        summaryEl.textContent = t('home.batch.summary', { selected: totalSelected, ready: readySelected });
         summaryEl.style.color = readySelected > 0 ? '#10b981' : (totalSelected > 0 ? '#f59e0b' : '#2563eb');
       }
 
@@ -591,9 +597,9 @@
       if (loadEl) {
         if (readySelected > 0 && optedIn > 0) {
           const perAcc = Math.ceil(optedIn / readySelected);
-          loadEl.textContent = `~${perAcc} msgs per account (${optedIn} total contacts)`;
+          loadEl.textContent = `${t('home.batch.load', { count: perAcc })} (${optedIn} ${t('home.stat.contacts')})`;
         } else {
-          loadEl.textContent = `~0 msgs per account`;
+          loadEl.textContent = t('home.batch.load', { count: 0 });
         }
       }
     }
@@ -710,26 +716,26 @@
       const customDelay = Number(form.customDelay.value || 120);
 
       let selectedAccountIds = 'all';
-      let accountLabel = 'All Ready Accounts';
+      let accountLabel = t('home.allReadyAccounts');
 
       if (accModeCustom.checked) {
         const checkedBoxes = Array.from(document.querySelectorAll('.acc-checkbox:checked'));
         if (checkedBoxes.length === 0) {
-          errorEl.textContent = "Please select at least one WhatsApp account from the list.";
+          errorEl.textContent = t('home.selectAtLeastOne');
           return;
         }
         const readyBoxes = checkedBoxes.filter(cb => cb.dataset.ready === '1');
         if (readyBoxes.length === 0) {
-          if (!confirm(`Warning: None of the ${checkedBoxes.length} selected accounts currently show READY. Do you still want to proceed?`)) {
+          if (!confirm(t('home.noneReadyConfirm', { count: checkedBoxes.length }))) {
             return;
           }
         }
         selectedAccountIds = checkedBoxes.map(cb => cb.value).join(',');
-        accountLabel = `${checkedBoxes.length} chosen accounts (${readyBoxes.length} ready)`;
+        accountLabel = t('home.chosenAccounts', { count: checkedBoxes.length, ready: readyBoxes.length });
       } else {
         const selVal = document.getElementById('accountSelect').value;
         selectedAccountIds = selVal;
-        accountLabel = selVal === 'all' ? 'All Ready Accounts' : selVal;
+        accountLabel = selVal === 'all' ? t('home.allReadyAccounts') : selVal;
       }
 
       // Compile message variations into spintax
@@ -739,7 +745,7 @@
         if (val) messages.push(val);
       });
       if (messages.length === 0) {
-        errorEl.textContent = "Please enter at least one message variation.";
+        errorEl.textContent = t('home.enterVariation');
         return;
       }
       const finalPayload = messages.length === 1 ? messages[0] : `{${messages.join('|')}}`;
@@ -768,7 +774,7 @@
         });
         
         if (response.started) {
-          resultEl.innerHTML = `<span style="color: #10b981; font-weight: bold;">✔ Broadcast started successfully!</span> Scroll down to monitor live progress.`;
+          resultEl.innerHTML = `<span style="color: #10b981; font-weight: bold;">${t('home.broadcastStarted')}</span>`;
           document.querySelectorAll('#msgContainers textarea').forEach(ta => ta.value = '');
           saveDraft();
           startLiveMonitoring();
@@ -846,20 +852,20 @@
             <div>
               <strong style="font-size: 14px;">${escapeHtml(formatCampaignTitle(c.name))}</strong>
               <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
-                ${c.started_at ? `Started: ${formatMYT(c.started_at)} (MYT)` : (c.created_at ? formatMYT(c.created_at) + ' (MYT)' : '')}
+                ${c.started_at ? `${t('broadcast.started')} ${formatMYT(c.started_at)} (MYT)` : (c.created_at ? formatMYT(c.created_at) + ' (MYT)' : '')}
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-              ${c.status === 'sending' ? `<button type="button" onclick="stopCampaign(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; border: none; cursor: pointer; font-weight: bold;">Stop</button>` : ''}
-              <button type="button" onclick="viewLogs(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #64748b; color: white; border-radius: 4px; border: none; cursor: pointer;">Logs</button>
-              <a href="/campaigns/${c.id}/export.csv" download style="padding: 4px 10px; font-size: 11px; background: #10b981; color: white; border-radius: 4px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; cursor: pointer;">📥 Download CSV</a>
+              ${c.status === 'sending' ? `<button type="button" onclick="stopCampaign(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #ef4444; color: white; border-radius: 4px; border: none; cursor: pointer; font-weight: bold;">${t('broadcast.stop')}</button>` : ''}
+              <button type="button" onclick="viewLogs(${c.id})" style="padding: 4px 10px; font-size: 11px; background: #64748b; color: white; border-radius: 4px; border: none; cursor: pointer;">${t('broadcast.logs')}</button>
+              <a href="/campaigns/${c.id}/export.csv" download style="padding: 4px 10px; font-size: 11px; background: #10b981; color: white; border-radius: 4px; text-decoration: none; font-weight: bold; display: inline-flex; align-items: center; cursor: pointer;">${t('broadcast.downloadCsv')}</a>
               <span class="badge ${c.status === 'sending' ? 'CONNECTING' : c.status === 'completed' ? 'READY' : 'BANNED'}">${c.status.toUpperCase()}</span>
             </div>
           </div>
           <div style="display: flex; gap: 16px; font-size: 13px;">
-            <span style="color: #2563eb;">Targeted: <b>${c.totalTargeted || 0}</b></span>
-            <span style="color: #10b981;">Delivered/Sent: <b>${c.sent || 0}</b></span>
-            <span style="color: #ef4444;">Failed: <b>${c.failed || 0}</b></span>
+            <span style="color: #2563eb;">${t('broadcast.targeted')} <b>${c.totalTargeted || 0}</b></span>
+            <span style="color: #10b981;">${t('broadcast.delivered')} <b>${c.sent || 0}</b></span>
+            <span style="color: #ef4444;">${t('broadcast.failed')} <b>${c.failed || 0}</b></span>
           </div>
           ${c.status === 'sending' ? `
             <div style="margin-top: 10px; background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
@@ -871,16 +877,16 @@
 
       let html = '';
       if (active.length > 0) {
-        html += `<h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2563eb;">📡 Active Broadcasts</h3>`;
+        html += `<h3 style="margin: 0 0 10px 0; font-size: 14px; color: #2563eb;">${t('broadcast.activeTitle')}</h3>`;
         html += active.map(renderCampaign).join('');
       }
       if (recent.length > 0) {
-        html += `<h3 style="margin: 16px 0 10px 0; font-size: 14px; color: var(--muted);">Recent Broadcast History & Reports</h3>`;
+        html += `<h3 style="margin: 16px 0 10px 0; font-size: 14px; color: var(--muted);">${t('broadcast.recentTitle')}</h3>`;
         html += recent.map(renderCampaign).join('');
       }
       
       if (html === '') {
-        html = `<p class="muted">No broadcasts found.</p>`;
+        html = `<p class="muted">${t('broadcast.empty')}</p>`;
       }
       
       document.getElementById('liveProcessList').innerHTML = html;
@@ -891,7 +897,7 @@
     }
 
     async function stopCampaign(id) {
-      if (!confirm('Are you sure you want to completely stop this broadcast?')) return;
+      if (!confirm(t('home.confirmStopBroadcast'))) return;
       try {
         await api('/campaigns/' + id + '/stop', { method: 'POST' });
         pollLiveProcess();
@@ -906,22 +912,22 @@
       currentLogsCampaignId = id;
       document.getElementById('logsModal').style.display = 'flex';
       const container = document.getElementById('logsContent');
-      container.innerHTML = 'Loading logs...';
+      container.innerHTML = t('logs.loading');
       try {
         const recipients = await api('/campaigns/' + id + '/recipients');
         currentLogsData = recipients || [];
         if (!recipients || recipients.length === 0) {
-          container.innerHTML = '<p class="muted">No messages in this campaign.</p>';
+          container.innerHTML = `<p class="muted">${t('logs.empty')}</p>`;
           return;
         }
         let html = '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
-        html += '<tr><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Phone</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Status</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Reason/Error</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">Time</th></tr>';
+        html += `<tr><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">${t('logs.thPhone')}</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">${t('logs.thStatus')}</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">${t('logs.thReason')}</th><th style="padding:4px;border-bottom:1px solid var(--border);text-align:left;">${t('logs.thTime')}</th></tr>`;
         recipients.forEach(r => {
           const statusColor = r.status === 'failed' ? 'var(--danger)' : (r.status === 'sent' || r.status === 'delivered' || r.status === 'read' ? '#10b981' : 'var(--text)');
           html += `<tr>
             <td style="padding:4px;border-bottom:1px solid var(--border);">${escapeHtml(r.phone)}</td>
             <td style="padding:4px;border-bottom:1px solid var(--border);color:${statusColor};font-weight:bold;">${escapeHtml(r.status.toUpperCase())}</td>
-            <td style="padding:4px;border-bottom:1px solid var(--border);color:${r.status === 'failed' ? 'var(--danger)' : 'var(--text)'};">${escapeHtml(r.error || (r.status !== 'failed' ? 'Success' : 'Unknown'))}</td>
+            <td style="padding:4px;border-bottom:1px solid var(--border);color:${r.status === 'failed' ? 'var(--danger)' : 'var(--text)'};">${escapeHtml(r.error || (r.status !== 'failed' ? t('logs.success') : 'Unknown'))}</td>
             <td style="padding:4px;border-bottom:1px solid var(--border);">${r.sent_at ? formatMYT(r.sent_at, true) : 'N/A'}</td>
           </tr>`;
         });
@@ -938,7 +944,7 @@
         return;
       }
       if (!currentLogsData || currentLogsData.length === 0) {
-        alert("No logs to export.");
+        alert(t('logs.noToExport'));
         return;
       }
       
@@ -1013,13 +1019,13 @@
       btn.className = 'secondary';
       btn.dataset.idx = idx;
       btn.style = 'padding: 4px 12px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; display: flex; align-items: center; gap: 6px;';
-      btn.innerHTML = `Msg ${idx + 1} <span class="del-tab" style="color: #ef4444; cursor: pointer; font-weight: bold;">&times;</span>`;
+      btn.innerHTML = `${t('home.variations.msgTab')} ${idx + 1} <span class="del-tab" style="color: #ef4444; cursor: pointer; font-weight: bold;">&times;</span>`;
       document.getElementById('addMsgBtn').before(btn);
 
       const ta = document.createElement('textarea');
       ta.name = `message_${idx}`;
       ta.id = `message_${idx}`;
-      ta.placeholder = "Another variation of your message...";
+      ta.placeholder = t('home.variations.placeholder');
       ta.style = 'border-top-left-radius: 0; display: none;';
       ta.value = initialVal;
       document.getElementById('msgContainers').appendChild(ta);
@@ -1027,7 +1033,7 @@
     }
 
     document.getElementById('addMsgBtn').addEventListener('click', () => {
-      if (document.querySelectorAll('#msgContainers textarea').length >= 5) return alert("Maximum 5 message variations allowed.");
+      if (document.querySelectorAll('#msgContainers textarea').length >= 5) return alert(t('home.variations.maxAlert'));
       const idx = addMessageTab('');
       if (idx !== null) {
         switchTab(idx);
@@ -1095,7 +1101,7 @@
       const btn = document.getElementById('deleteSelectedBtn');
       if (btn) {
         btn.style.display = checked > 0 ? 'block' : 'none';
-        btn.textContent = `Delete Selected (${checked})`;
+        btn.textContent = t('contacts.deleteSelectedCount', { count: checked });
       }
     }
 
@@ -1108,11 +1114,11 @@
 
     document.getElementById('deleteSelectedBtn').addEventListener('click', async () => {
       const checkboxes = document.querySelectorAll('.contactCheckbox:checked');
-      if (!confirm(`Are you sure you want to delete ${checkboxes.length} contacts?`)) return;
+      if (!confirm(t('contacts.deleteSelectedConfirm', { count: checkboxes.length }))) return;
       
       const btn = document.getElementById('deleteSelectedBtn');
       btn.disabled = true;
-      btn.textContent = 'Deleting...';
+      btn.textContent = t('contacts.deleting');
       
       for (const cb of checkboxes) {
         try {
@@ -1168,7 +1174,7 @@
 
     document.getElementById('exportContactsBtn').addEventListener('click', () => {
       if (!globalContacts || globalContacts.length === 0) {
-        alert("No contacts to export.");
+        alert(t('contacts.noToExport'));
         return;
       }
       
@@ -1234,7 +1240,7 @@
         if (res.status === 401) return (window.location.href = '/login.html');
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        resultEl.textContent = `Inserted: ${data.inserted}, Updated: ${data.updated}, Skipped: ${data.skipped.length}`;
+        resultEl.textContent = t('contacts.importSuccess', { inserted: data.inserted, updated: data.updated, skipped: data.skipped.length });
         await loadContacts();
       } catch (err) {
         errorEl.textContent = err.message;
@@ -1243,10 +1249,10 @@
 
     document.getElementById('syncWhatsappBtn').addEventListener('click', async () => {
       const syncStatus = document.getElementById('syncStatus');
-      syncStatus.textContent = 'Syncing contacts from WhatsApp...';
+      syncStatus.textContent = t('contacts.syncing');
       try {
         const res = await api('/contacts/sync', { method: 'POST' });
-        syncStatus.textContent = `Sync complete. Synced: ${res.synced}`;
+        syncStatus.textContent = t('contacts.syncComplete', { count: res.synced });
         await loadContacts();
       } catch (err) {
         syncStatus.textContent = 'Error: ' + err.message;
@@ -1301,7 +1307,7 @@
     async function connectAccountSlice(startIdx, endIdx) {
       const sorted = [...lastKnownStates].sort((a, b) => waNaturalCollator.compare(a.account_name || a.id, b.account_name || b.id));
       const slice = sorted.slice(startIdx, endIdx);
-      if (!confirm(`Connect ${slice.length} accounts sequentially?`)) return;
+      if (!confirm(t('wa.connectBatchConfirm', { count: slice.length }))) return;
       for (const acc of slice) {
         if (acc.liveStatus !== 'ready' && acc.dbStatus !== 'READY') {
           reconnectAccount(acc.id, acc.account_name, acc.proxy_url);
@@ -1322,10 +1328,10 @@
       btnRetryErr.addEventListener('click', async () => {
         const errorAccounts = lastKnownStates.filter(a => a.error || a.liveStatus === 'error' || a.liveStatus === 'ERROR');
         if (errorAccounts.length === 0) {
-          alert('No accounts currently in ERROR state.');
+          alert(t('wa.noErrorAccounts'));
           return;
         }
-        if (!confirm(`Retry connecting ${errorAccounts.length} error accounts?`)) return;
+        if (!confirm(t('wa.retryErrorsConfirm', { count: errorAccounts.length }))) return;
         for (const acc of errorAccounts) {
           reconnectAccount(acc.id, acc.account_name, acc.proxy_url);
           await new Promise(r => setTimeout(r, 1500));
@@ -1336,7 +1342,7 @@
     const btnDiscAll = document.getElementById('btnDisconnectAll');
     if (btnDiscAll) {
       btnDiscAll.addEventListener('click', async () => {
-        if (!confirm('Disconnect all accounts? This will stop background Chromium processes and immediately free up server RAM.')) return;
+        if (!confirm(t('wa.disconnectAllConfirm'))) return;
         const active = lastKnownStates.filter(a => a.liveStatus === 'ready' || a.dbStatus === 'READY' || a.liveStatus === 'connecting');
         for (const acc of active) {
           disconnectAccount(acc.id);
@@ -1351,9 +1357,9 @@
       const grid = document.getElementById('accountsGrid');
       if (!grid) return;
       if (!states || states.length === 0) {
-        grid.innerHTML = '<div class="card muted" style="grid-column: 1/-1;">No accounts connected yet. Click "+ Add Account" to configure one.</div>';
+        grid.innerHTML = `<div class="card muted" style="grid-column: 1/-1;">${t('wa.noAccounts')}</div>`;
         const badge = document.getElementById('waAccountsCountBadge');
-        if (badge) badge.textContent = '0 accounts';
+        if (badge) badge.textContent = `0 ${t('nav.whatsapp')}`;
         return;
       }
 
@@ -1401,7 +1407,7 @@
       const readyCount = states.filter(a => a.liveStatus === 'ready' || a.dbStatus === 'READY').length;
       const countBadge = document.getElementById('waAccountsCountBadge');
       if (countBadge) {
-        countBadge.textContent = `${sorted.length} shown of ${states.length} (${readyCount} READY)`;
+        countBadge.textContent = t('wa.card.shownOf', { shown: sorted.length, total: states.length, ready: readyCount });
       }
 
       const currentJson = JSON.stringify({ sorted, connecting: Array.from(connectingAccountIds), waSortMode, waFilterText });
@@ -1419,7 +1425,7 @@
               : (acc.liveStatus && acc.liveStatus !== 'idle'
                   ? acc.liveStatus.toUpperCase()
                   : (acc.dbStatus === 'READY' ? 'DISCONNECTED' : acc.dbStatus)));
-        const proxyText = acc.proxy_url ? escapeHtml(acc.proxy_url) : 'Direct Connection (No Proxy)';
+        const proxyText = acc.proxy_url ? escapeHtml(acc.proxy_url) : t('wa.card.direct');
 
         let statusBadgeClass = displayStatus;
         if (displayStatus === 'READY') statusBadgeClass = 'READY';
@@ -1435,14 +1441,14 @@
           qrHtml = `
             <div class="qr-container" style="padding: 16px 0;">
               <div class="qr-spinner"></div>
-              <p style="font-size:13px; font-weight:600; color:#2563eb; margin: 6px 0 2px;">Starting WhatsApp session...</p>
-              <p style="font-size:11px;" class="muted">Generating QR code (takes ~10s)...</p>
+              <p style="font-size:13px; font-weight:600; color:#2563eb; margin: 6px 0 2px;">${t('wa.card.starting')}</p>
+              <p style="font-size:11px;" class="muted">${t('wa.card.generatingQr')}</p>
             </div>
           `;
         } else if ((displayStatus === 'QR' || displayStatus === 'QR_READY' || isConnecting) && qrImageSrc) {
           qrHtml = `
             <div class="qr-container">
-              <p style="font-size:12px; font-weight:600; margin-bottom: 6px;" class="muted">Scan with WhatsApp on phone (Linked Devices):</p>
+              <p style="font-size:12px; font-weight:600; margin-bottom: 6px;" class="muted">${t('wa.card.scanPrompt')}</p>
               <img src="${qrImageSrc}" alt="WhatsApp QR Code" style="width:220px; height:220px; display:inline-block; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.12); background:#fff; padding:6px;" />
             </div>
           `;
@@ -1450,7 +1456,7 @@
           qrHtml = `
             <div class="qr-container" style="padding: 16px 0;">
               <div class="qr-spinner"></div>
-              <p style="font-size:12px;" class="muted">Generating fresh QR code...</p>
+              <p style="font-size:12px;" class="muted">${t('wa.card.freshQr')}</p>
             </div>
           `;
         }
@@ -1467,23 +1473,23 @@
                   ${phoneHtml}
                   <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; background: var(--border); padding: 2px 6px; border-radius: 4px;">
                     <input type="checkbox" ${acc.is_active ? 'checked' : ''} onchange="toggleAccountActive('${escapeHtml(acc.id)}', this.checked, this)" />
-                    Active
+                    ${t('wa.card.active')}
                   </label>
                 </div>
                 <span class="badge ${statusBadgeClass}">${displayStatus}</span>
               </div>
-              <div class="proxy-info"><strong>Proxy:</strong> ${proxyText}</div>
+              <div class="proxy-info"><strong>${t('wa.card.proxy')}</strong> ${proxyText}</div>
               ${acc.error ? `<div class="error" style="font-size:12px; margin-bottom:8px;">${escapeHtml(acc.error)}</div>` : ''}
               ${qrHtml}
             </div>
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end;">
-              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}', this)">Delete</button>
+              <button class="danger" style="background:#450a0a; border:1px solid #7f1d1d; color:#fca5a5;" onclick="deleteAccountCard('${escapeHtml(acc.id)}', this)">${t('wa.card.delete')}</button>
               ${displayStatus === 'DISCONNECTED' || displayStatus === 'ERROR' || isConnecting ? `
                 <button class="secondary" ${isConnecting ? 'disabled' : ''} onclick="reconnectAccount('${escapeHtml(acc.id)}', '${escapeHtml(acc.account_name)}', '${escapeHtml(acc.proxy_url || '')}', this)">
-                  ${isConnecting ? 'Connecting...' : (displayStatus === 'ERROR' ? 'Retry' : 'Connect')}
+                  ${isConnecting ? t('wa.card.connecting') : (displayStatus === 'ERROR' ? t('wa.card.retry') : t('wa.card.connect'))}
                 </button>
               ` : `
-                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">Disconnect</button>
+                <button class="danger" onclick="disconnectAccount('${escapeHtml(acc.id)}', this)">${t('wa.card.disconnect')}</button>
               `}
             </div>
           </div>
@@ -1492,7 +1498,7 @@
     }
 
     async function editAccountName(id, currentName) {
-      const newName = prompt(`Enter new name for account ${id}:`, currentName);
+      const newName = prompt(t('wa.editNamePrompt', { id }), currentName);
       if (newName === null || newName.trim() === '') return;
       try {
         await api('/whatsapp/edit-name', {
@@ -1537,8 +1543,8 @@
     }
 
     async function disconnectAccount(id, btn) {
-      if (!confirm(`Disconnect account ${id}?`)) return;
-      if (btn) { btn.disabled = true; btn.textContent = 'Disconnecting...'; }
+      if (!confirm(t('wa.disconnectOneConfirm', { id }))) return;
+      if (btn) { btn.disabled = true; btn.textContent = t('wa.card.disconnecting'); }
       try {
         await api('/whatsapp/disconnect', {
           method: 'POST',
@@ -1546,13 +1552,13 @@
         });
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
-        if (btn) { btn.disabled = false; btn.textContent = 'Disconnect'; }
+        if (btn) { btn.disabled = false; btn.textContent = t('wa.card.disconnect'); }
       }
     }
 
     async function deleteAccountCard(id, btn) {
-      if (!confirm(`Are you sure you want to completely delete account "${id}"?`)) return;
-      if (btn) { btn.disabled = true; btn.textContent = 'Deleting...'; }
+      if (!confirm(t('wa.deleteOneConfirm', { id }))) return;
+      if (btn) { btn.disabled = true; btn.textContent = t('wa.card.deleting'); }
       try {
         await api('/whatsapp/delete', {
           method: 'POST',
@@ -1560,7 +1566,7 @@
         });
       } catch (err) {
         document.getElementById('globalError').textContent = err.message;
-        if (btn) { btn.disabled = false; btn.textContent = 'Delete'; }
+        if (btn) { btn.disabled = false; btn.textContent = t('wa.card.delete'); }
       }
     }
 
@@ -1699,8 +1705,8 @@
     <div class="modal">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <h2 style="margin: 0; font-size: 16px;">Campaign Logs</h2>
-          <button onclick="exportLogsToCSV()" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer;">Export to Excel (CSV)</button>
+          <h2 style="margin: 0; font-size: 16px;" data-i18n="logs.title">Campaign Logs</h2>
+          <button onclick="exportLogsToCSV()" style="padding: 4px 8px; font-size: 12px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer;" data-i18n="logs.exportBtn">Export to Excel (CSV)</button>
         </div>
         <button onclick="document.getElementById('logsModal').style.display = 'none'" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--muted); padding: 0;">&times;</button>
       </div>

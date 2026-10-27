@@ -51,13 +51,13 @@ async function renderNav(activePage) {
   // Render navigation tabs immediately so they are ALWAYS visible
   nav.innerHTML =
     pages.map(([id, key, defaultText]) => 
-      `<a href="javascript:void(0)" class="nav-tab ${id === currentTab ? 'active' : ''}" data-view="${id}" data-i18n="${key}" style="${id === 'whatsapp' || id === 'admin' ? 'display:none;' : ''}">${defaultText}</a>`
+      `<a href="javascript:void(0)" class="nav-tab ${id === currentTab ? 'active' : ''}" data-view="${id}" data-i18n="${key}" style="${id === 'whatsapp' || id === 'admin' ? 'display:none;' : ''}">${t(key) || defaultText}</a>`
     ).join('') +
     `<span class="spacer"></span>` +
-    `<span id="creditBalance" style="margin-right:15px; font-weight:bold; color:#10b981; display:none;">Credits: <span id="creditCount"></span></span>` +
-    `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;">🌓 Theme</button>` +
+    `<span id="creditBalance" style="margin-right:15px; font-weight:bold; color:#10b981; display:none;"><span data-i18n="nav.credits">${t('nav.credits')}</span> <span id="creditCount"></span></span>` +
+    `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;" data-i18n="nav.theme">${t('nav.theme')}</button>` +
     `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
-    `<span class="user" id="navUser"></span><button class="logout" id="logoutBtn" data-i18n="nav.logout" style="display:none;"></button>`;
+    `<span class="user" id="navUser"></span><button class="logout" id="logoutBtn" data-i18n="nav.logout" style="display:none;">${t('nav.logout')}</button>`;
 
   nav.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', (e) => {
