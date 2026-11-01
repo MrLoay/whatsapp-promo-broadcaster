@@ -101,7 +101,8 @@ export async function sendNow(
   customDelay?: number,
   mediaPath?: string,
   mediaMimeType?: string,
-  accountId?: string
+  accountId?: string,
+  rotationBatch?: number
 ): Promise<Campaign> {
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
@@ -112,12 +113,12 @@ export async function sendNow(
   const campaign = createQuickCampaign(db, owner, getMalaysiaBroadcastName(), finalMessage, mediaPath, mediaMimeType);
 
   if (config.dryRun) {
-    const summary = await sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId);
+    const summary = await sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId, rotationBatch);
     return { ...campaign, ...summary };
   }
 
   // Kick off campaign dispatch in the background so the UI doesn't hang
-  sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId).catch(console.error);
+  sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId, rotationBatch).catch(console.error);
 
   return campaign;
 }
@@ -224,7 +225,8 @@ export async function sendCampaign(
   campaignId: number,
   delayMode: string = 'auto',
   customDelaySec: number = 120,
-  accountId?: string
+  accountId?: string,
+  rotationBatch: number = 1
 ): Promise<SendSummary> {
   const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
@@ -304,7 +306,15 @@ export async function sendCampaign(
       }
     } catch {}
 
-    // In-memory queue of recipient tasks for thread-safe claiming across concurrent workers
+    // Natural numerical sorting for accounts: Account 1, Account 2, ..., Account 26
+    const naturalCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    validAccounts.sort((a, b) => {
+      const nameA = accountNameMap.get(a) || a;
+      const nameB = accountNameMap.get(b) || b;
+      return naturalCollator.compare(nameA, nameB);
+    });
+
+    // In-memory queue of recipient tasks for thread-safe claiming across rounds
     const recipientTasks = db.prepare(
       `SELECT cr.id, cr.contact_id, ct.phone, ct.name
        FROM campaign_recipients cr
@@ -323,19 +333,35 @@ export async function sendCampaign(
       taskQueue.unshift(task);
     };
 
-    // Shared worker loop for each active account
-    const runAccountWorker = async (accId: string) => {
-      let isFirst = true;
-      const accDisplayName = accountNameMap.get(accId) || accId;
+    // Strict Round-Robin Rotation Dispatcher (1 to N accounts, 1 or 2 messages per turn)
+    const msgsPerTurn = Math.max(1, Math.min(10, Number(rotationBatch || 1)));
+    let activePool = [...validAccounts];
+    let roundNum = 1;
 
-      while (true) {
-        // Check if campaign was stopped or paused
-        const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
-        if (!currentCampaign || currentCampaign.status !== 'sending') {
-          break;
-        }
+    console.log(`[Campaign ${campaignId}] Starting round-robin broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rotation: ${msgsPerTurn} msg/account per turn`);
 
-        // Check if this account is still ready
+    while (taskQueue.length > 0 && activePool.length > 0) {
+      // Check if campaign was stopped or paused
+      const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+      if (!currentCampaign || currentCampaign.status !== 'sending') {
+        console.log(`[Campaign ${campaignId}] Campaign is no longer 'sending' (status: ${currentCampaign?.status}). Stopping rotation.`);
+        break;
+      }
+
+      console.log(`[Campaign ${campaignId}] --- Starting Round ${roundNum} (${activePool.length} active accounts, ${taskQueue.length} contacts remaining) ---`);
+
+      const nextRoundPool: string[] = [];
+
+      for (const accId of activePool) {
+        // Check if stopped between account turns
+        const checkStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+        if (!checkStatus || checkStatus.status !== 'sending') break;
+
+        if (taskQueue.length === 0) break;
+
+        const accDisplayName = accountNameMap.get(accId) || accId;
+
+        // Verify account is still ready in memory/session
         if (!config.dryRun) {
           let s = getConnectionState(accId);
           if (s.status !== 'ready') {
@@ -348,88 +374,95 @@ export async function sendCampaign(
             }
           }
           if (s.status !== 'ready') {
-            console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Worker exiting gracefully.`);
+            console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Dropping from rotation.`);
             updateAccountStatus(db, accId, 'DISCONNECTED');
-            break; // Stop this worker; surviving accounts will continue processing remaining contacts
+            continue; // Dropped from nextRoundPool
           }
         }
 
-        // Claim the next contact from the shared queue
-        const task = claimNextContact();
-        if (!task) {
-          // No more queued contacts in campaign
-          break;
-        }
+        // Healthy account: send up to msgsPerTurn (1 or 2 messages)
+        let accountDropped = false;
+        for (let turn = 0; turn < msgsPerTurn; turn++) {
+          if (taskQueue.length === 0) break;
 
-        // Safe per-account delay to prevent WhatsApp anti-spam bans
-        if (!isFirst && !config.dryRun) {
-          let sleepTimeMs = 15000;
-          if (delayMode === 'old_acc') {
-            sleepTimeMs = Math.floor(120000 + Math.random() * 180000); // 2 to 5 minutes
-          } else if (delayMode === 'moderate') {
-            sleepTimeMs = Math.floor(12000 + Math.random() * 18000);   // 12 to 30 seconds
-          } else if (delayMode === 'custom') {
-            sleepTimeMs = Math.max(1000, customDelaySec * 1000);
-          } else {
-            // 'auto' mode: Humanized 10 to 18 seconds per account with random jitter
-            // Across 15 accounts, ~1 msg/sec total system throughput, completely safe for each account
-            sleepTimeMs = Math.floor(10000 + Math.random() * 8000);
-          }
-          await sleep(sleepTimeMs);
-        }
-        isFirst = false;
+          const task = claimNextContact();
+          if (!task) break;
 
-        try {
-          // Verify credit balance
-          if (!isAdmin && !config.dryRun) {
-            const balance = getCreditBalance(db, owner);
-            const cost = getCostPerMsg(db, owner);
-            if (balance < cost) {
-              throw new Error('Insufficient credits. Please top up.');
+          try {
+            // Verify credit balance
+            if (!isAdmin && !config.dryRun) {
+              const balance = getCreditBalance(db, owner);
+              const cost = getCostPerMsg(db, owner);
+              if (balance < cost) {
+                returnContactToQueue(task);
+                throw new Error('Insufficient credits. Please top up.');
+              }
+              if (!deductCredits(db, owner, cost)) {
+                returnContactToQueue(task);
+                throw new Error('Failed to deduct credits.');
+              }
             }
-            if (!deductCredits(db, owner, cost)) {
-              throw new Error('Failed to deduct credits.');
-            }
-          }
 
-          const variableValues = template.personalize_name ? [task.name ?? ''] : fixedVariableValues;
-          const result = await sendCampaignMessage(accId, task.phone, template, variableValues);
+            const variableValues = template.personalize_name ? [task.name ?? ''] : fixedVariableValues;
+            const result = await sendCampaignMessage(accId, task.phone, template, variableValues);
 
-          db.prepare(
-            `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
-          ).run(result.id, accId, accDisplayName, task.id);
-          summary.sent++;
-        } catch (err: any) {
-          const errorMsg = err?.message || String(err);
-          const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
-          const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out') || errorMsg.includes('me is undefined');
+            db.prepare(
+              `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
+            ).run(result.id, accId, accDisplayName, task.id);
+            summary.sent++;
+          } catch (err: any) {
+            const errorMsg = err?.message || String(err);
+            const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
+            const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out') || errorMsg.includes('me is undefined');
 
-          if (isInvalidNumber) {
-            // Unregistered WhatsApp number, fail permanently
-            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
-            summary.failed++;
-          } else if (isAccountIssue) {
-            // Account dropped or hit CDP timeout -- DO NOT FAIL CONTACT!
-            // Return task to queue so other healthy accounts will deliver it seamlessly!
-            console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue for other accounts.`);
-            returnContactToQueue(task);
-            updateAccountStatus(db, accId, 'DISCONNECTED');
-            break; // Stop this worker
-          } else {
-            if (errorMsg.includes('credits')) {
+            if (isInvalidNumber) {
+              // Unregistered number: fail contact permanently, account is good
+              db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
+              summary.failed++;
+            } else if (isAccountIssue) {
+              // Account dropped or banned: return contact to queue for next healthy account
+              console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue.`);
               returnContactToQueue(task);
-              break; // Stop worker on credit exhaustion
+              updateAccountStatus(db, accId, 'DISCONNECTED');
+              accountDropped = true;
+              break; // Stop turn for this dropped account
+            } else {
+              if (errorMsg.includes('credits')) {
+                returnContactToQueue(task);
+                console.warn(`[Campaign ${campaignId}] Insufficient credits. Halting campaign.`);
+                accountDropped = true;
+                break;
+              }
+              db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
+              summary.failed++;
             }
-            // General failure: fail permanently
-            db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
-            summary.failed++;
           }
+
+          // Delay between message sends in the round-robin sequence
+          if (!config.dryRun && taskQueue.length > 0) {
+            let sleepTimeMs = 15000;
+            if (delayMode === 'old_acc') {
+              sleepTimeMs = Math.floor(120000 + Math.random() * 180000); // 2 to 5 minutes
+            } else if (delayMode === 'moderate') {
+              sleepTimeMs = Math.floor(12000 + Math.random() * 18000);   // 12 to 30 seconds
+            } else if (delayMode === 'custom') {
+              sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+            } else {
+              // 'auto' mode: 10 to 18 seconds
+              sleepTimeMs = Math.floor(10000 + Math.random() * 8000);
+            }
+            await sleep(sleepTimeMs);
+          }
+        }
+
+        if (!accountDropped) {
+          nextRoundPool.push(accId);
         }
       }
-    };
 
-    // Run dynamic workers across all valid accounts in parallel
-    await Promise.allSettled(validAccounts.map((accId) => runAccountWorker(accId)));
+      activePool = nextRoundPool;
+      roundNum++;
+    }
 
     // Handle any stray contacts left in 'queued' (e.g. if ALL accounts went offline or stopped)
     const remaining = db.prepare(

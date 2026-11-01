@@ -96,6 +96,17 @@
           </div>
 
           <div style="margin-bottom: 16px;">
+            <label for="rotationBatchSelect" style="font-weight: 600; display: block; margin-bottom: 4px;" data-i18n="home.rotation.label">Account Rotation (Round-Robin):</label>
+            <select id="rotationBatchSelect" name="rotationBatch" style="width: 100%; max-width: 400px; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: var(--card); color: var(--text);">
+              <option value="1" data-i18n="home.rotation.opt1">1 message per account (Strict 1-by-1 Round-Robin)</option>
+              <option value="2" data-i18n="home.rotation.opt2">2 messages per account before rotating</option>
+            </select>
+            <div class="muted" style="font-size: 12px; margin-top: 4px;" data-i18n="home.rotation.desc">
+              Accounts rotate in sequence (1 to N). Each account sends 1 or 2 messages, then the cycle repeats.
+            </div>
+          </div>
+
+          <div style="margin-bottom: 16px;">
             <label for="mediaInput" style="font-weight: 600; display: block; margin-bottom: 4px;" data-i18n="home.media.label">Attach Image or Video (Optional):</label>
             <input type="file" id="mediaInput" name="media" accept="image/*,video/*" style="width: 100%; max-width: 400px;" />
           </div>
@@ -714,6 +725,7 @@
       const optedIn = globalContacts.filter((c) => c.opt_in_status === 'opted_in').length;
       const delayMode = form.delayMode.value;
       const customDelay = Number(form.customDelay.value || 120);
+      const rotationBatch = Number(form.rotationBatch?.value || 1);
 
       let selectedAccountIds = 'all';
       let accountLabel = t('home.allReadyAccounts');
@@ -751,7 +763,7 @@
       const finalPayload = messages.length === 1 ? messages[0] : `{${messages.join('|')}}`;
       document.getElementById('finalMessagePayload').value = finalPayload;
 
-      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel}, Delay: ${delayMode})`)) return;
+      if (!confirm(`${t('home.send.confirmPrefix')} ${optedIn} ${t('home.send.confirmSuffix')}\n(Using ${accountLabel}, Delay: ${delayMode}, Rotation: ${rotationBatch} msg/account)`)) return;
 
       const btn = form.querySelector('button[type="submit"]');
       const originalLabel = btn.textContent;
@@ -764,6 +776,7 @@
         formData.append('accountIds', selectedAccountIds);
         formData.append('delayMode', delayMode);
         formData.append('customDelay', customDelay);
+        formData.append('rotationBatch', rotationBatch);
         if (form.media.files[0]) {
           formData.append('media', form.media.files[0]);
         }
