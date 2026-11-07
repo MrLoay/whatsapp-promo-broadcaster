@@ -75,4 +75,19 @@ describe('campaigns service (DRY_RUN)', () => {
     expect(getCampaignById(db, 'sunglasses', campaign.id)).toBeUndefined();
     await expect(sendCampaign(db, 'sunglasses', campaign.id)).rejects.toThrow(/not found/);
   });
+
+  it('sends with batch_sync scheduling mode', async () => {
+    const template = registerTemplate(db, OWNER, { name: 'batch-sale', bodyText: 'Enjoy {{1}} off this summer!', language: 'en_US', variableCount: 1 });
+    const campaign = createCampaign(db, OWNER, 'Batch Sale', template.id, ['20%'], 'batch_sync', 30);
+    expect(campaign.scheduling_mode).toBe('batch_sync');
+    expect(campaign.batch_rest_seconds).toBe(30);
+
+    const summary = await sendCampaign(db, OWNER, campaign.id, 'auto', 30, undefined, 1, 'batch_sync', 30);
+    expect(summary.totalTargeted).toBe(2);
+    expect(summary.sent).toBe(2);
+    expect(summary.failed).toBe(0);
+
+    const completed = getCampaignById(db, OWNER, campaign.id);
+    expect(completed?.status).toBe('completed');
+  });
 });

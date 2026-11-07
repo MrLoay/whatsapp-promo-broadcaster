@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   variable_values TEXT,                 -- JSON array of strings, applied to every recipient
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'sending', 'completed', 'failed')),
   total_targeted INTEGER DEFAULT 0,
+  scheduling_mode TEXT NOT NULL DEFAULT 'round_robin' CHECK (scheduling_mode IN ('round_robin', 'batch_sync')),
+  batch_rest_seconds INTEGER NOT NULL DEFAULT 60,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,
   completed_at TEXT

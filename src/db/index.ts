@@ -13,6 +13,8 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: 'templates', column: 'media_mime_type', ddl: 'ALTER TABLE templates ADD COLUMN media_mime_type TEXT' },
   { table: 'accounts', column: 'is_active', ddl: 'ALTER TABLE accounts ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1' },
   { table: 'campaigns', column: 'total_targeted', ddl: 'ALTER TABLE campaigns ADD COLUMN total_targeted INTEGER DEFAULT 0' },
+  { table: 'campaigns', column: 'scheduling_mode', ddl: "ALTER TABLE campaigns ADD COLUMN scheduling_mode TEXT NOT NULL DEFAULT 'round_robin'" },
+  { table: 'campaigns', column: 'batch_rest_seconds', ddl: "ALTER TABLE campaigns ADD COLUMN batch_rest_seconds INTEGER NOT NULL DEFAULT 60" },
   { table: 'campaign_recipients', column: 'account_id', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN account_id TEXT' },
   { table: 'campaign_recipients', column: 'account_name', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN account_name TEXT' },
 ];

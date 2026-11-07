@@ -14,7 +14,12 @@ export interface Campaign {
   template_id: number;
   variable_values: string | null;
   status: 'draft' | 'sending' | 'completed' | 'failed';
+  total_targeted?: number;
+  scheduling_mode?: 'round_robin' | 'batch_sync';
+  batch_rest_seconds?: number;
   created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
 }
 
 export interface SendSummary {
@@ -30,7 +35,9 @@ export function createCampaign(
   owner: string,
   name: string,
   templateId: number,
-  variableValues: string[]
+  variableValues: string[],
+  schedulingMode: 'round_robin' | 'batch_sync' = 'round_robin',
+  batchRestSeconds: number = 60
 ): Campaign {
   const template = getTemplateById(db, owner, templateId);
   if (!template) throw new Error(`Template ${templateId} not found`);
@@ -42,8 +49,11 @@ export function createCampaign(
     );
   }
   const info = db
-    .prepare(`INSERT INTO campaigns (owner, name, template_id, variable_values) VALUES (?, ?, ?, ?)`)
-    .run(owner, name, templateId, JSON.stringify(variableValues));
+    .prepare(
+      `INSERT INTO campaigns (owner, name, template_id, variable_values, scheduling_mode, batch_rest_seconds)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(owner, name, templateId, JSON.stringify(variableValues), schedulingMode, batchRestSeconds);
   return getCampaignById(db, owner, info.lastInsertRowid as number)!;
 }
 
@@ -60,7 +70,9 @@ export function createQuickCampaign(
   name: string,
   message: string,
   mediaPath?: string,
-  mediaMimeType?: string
+  mediaMimeType?: string,
+  schedulingMode: 'round_robin' | 'batch_sync' = 'round_robin',
+  batchRestSeconds: number = 60
 ): Campaign {
   const personalizeName = message.includes('{{name}}');
   const bodyText = personalizeName ? message.replace(/\{\{name\}\}/g, '{{1}}') : message;
@@ -74,7 +86,7 @@ export function createQuickCampaign(
     mediaMimeType
   });
 
-  return createCampaign(db, owner, name, template.id, []);
+  return createCampaign(db, owner, name, template.id, [], schedulingMode, batchRestSeconds);
 }
 
 function getMalaysiaBroadcastName(): string {
@@ -102,7 +114,9 @@ export async function sendNow(
   mediaPath?: string,
   mediaMimeType?: string,
   accountId?: string,
-  rotationBatch?: number
+  rotationBatch?: number,
+  schedulingMode: 'round_robin' | 'batch_sync' = 'round_robin',
+  batchRestSeconds: number = 60
 ): Promise<Campaign> {
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
@@ -110,15 +124,44 @@ export async function sendNow(
     finalMessage = `{Hello|Hi|Hey|Greetings} {{name}},\n\n${finalMessage}`;
   }
 
-  const campaign = createQuickCampaign(db, owner, getMalaysiaBroadcastName(), finalMessage, mediaPath, mediaMimeType);
+  const campaign = createQuickCampaign(
+    db,
+    owner,
+    getMalaysiaBroadcastName(),
+    finalMessage,
+    mediaPath,
+    mediaMimeType,
+    schedulingMode,
+    batchRestSeconds
+  );
 
   if (config.dryRun) {
-    const summary = await sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId, rotationBatch);
+    const summary = await sendCampaign(
+      db,
+      owner,
+      campaign.id,
+      delayMode,
+      customDelay,
+      accountId,
+      rotationBatch,
+      schedulingMode,
+      batchRestSeconds
+    );
     return { ...campaign, ...summary };
   }
 
   // Kick off campaign dispatch in the background so the UI doesn't hang
-  sendCampaign(db, owner, campaign.id, delayMode, customDelay, accountId, rotationBatch).catch(console.error);
+  sendCampaign(
+    db,
+    owner,
+    campaign.id,
+    delayMode,
+    customDelay,
+    accountId,
+    rotationBatch,
+    schedulingMode,
+    batchRestSeconds
+  ).catch(console.error);
 
   return campaign;
 }
@@ -226,7 +269,9 @@ export async function sendCampaign(
   delayMode: string = 'auto',
   customDelaySec: number = 120,
   accountId?: string,
-  rotationBatch: number = 1
+  rotationBatch: number = 1,
+  schedulingMode?: 'round_robin' | 'batch_sync',
+  batchRestSeconds?: number
 ): Promise<SendSummary> {
   const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
@@ -333,63 +378,102 @@ export async function sendCampaign(
       taskQueue.unshift(task);
     };
 
-    // Strict Round-Robin Rotation Dispatcher (1 to N accounts, 1 or 2 messages per turn)
-    const msgsPerTurn = Math.max(1, Math.min(10, Number(rotationBatch || 1)));
+    const effectiveMode: 'round_robin' | 'batch_sync' =
+      schedulingMode || (campaign as any).scheduling_mode || 'round_robin';
+    const effectiveBatchRest =
+      batchRestSeconds !== undefined ? Number(batchRestSeconds) : Number((campaign as any).batch_rest_seconds || 60);
+
     let activePool = [...validAccounts];
     let roundNum = 1;
 
-    console.log(`[Campaign ${campaignId}] Starting round-robin broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rotation: ${msgsPerTurn} msg/account per turn`);
+    if (effectiveMode === 'batch_sync') {
+      // =========================================================================
+      // BATCH SYNCHRONIZED DISPATCHER (All accounts send together, then rest)
+      // =========================================================================
+      const restSec = Math.max(5, Math.min(600, effectiveBatchRest));
+      const restMs = restSec * 1000;
+      const msgsPerAccountPerBatch = Math.max(1, Math.min(5, Number(rotationBatch || 1)));
 
-    while (taskQueue.length > 0 && activePool.length > 0) {
-      // Check if campaign was stopped or paused
-      const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
-      if (!currentCampaign || currentCampaign.status !== 'sending') {
-        console.log(`[Campaign ${campaignId}] Campaign is no longer 'sending' (status: ${currentCampaign?.status}). Stopping rotation.`);
-        break;
-      }
+      console.log(`[Campaign ${campaignId}] Starting Batch-Synchronized broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rest: ${restSec}s, ${msgsPerAccountPerBatch} msg/acc/batch`);
 
-      console.log(`[Campaign ${campaignId}] --- Starting Round ${roundNum} (${activePool.length} active accounts, ${taskQueue.length} contacts remaining) ---`);
-
-      const nextRoundPool: string[] = [];
-
-      for (const accId of activePool) {
-        // Check if stopped between account turns
-        const checkStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
-        if (!checkStatus || checkStatus.status !== 'sending') break;
-
-        if (taskQueue.length === 0) break;
-
-        const accDisplayName = accountNameMap.get(accId) || accId;
-
-        // Verify account is still ready in memory/session
-        if (!config.dryRun) {
-          let s = getConnectionState(accId);
-          if (s.status !== 'ready') {
-            if (s.status === 'connecting' || s.status === 'authenticated') {
-              for (let wait = 0; wait < 3; wait++) {
-                await sleep(2000);
-                s = getConnectionState(accId);
-                if (s.status === 'ready') break;
-              }
-            }
-          }
-          if (s.status !== 'ready') {
-            console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Dropping from rotation.`);
-            updateAccountStatus(db, accId, 'DISCONNECTED');
-            continue; // Dropped from nextRoundPool
-          }
+      while (taskQueue.length > 0 && activePool.length > 0) {
+        // Check if campaign was stopped or paused
+        const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+        if (!currentCampaign || currentCampaign.status !== 'sending') {
+          console.log(`[Campaign ${campaignId}] Campaign is no longer 'sending' (status: ${currentCampaign?.status}). Stopping batch broadcast.`);
+          break;
         }
 
-        // Healthy account: send up to msgsPerTurn (1 or 2 messages)
-        let accountDropped = false;
-        for (let turn = 0; turn < msgsPerTurn; turn++) {
-          if (taskQueue.length === 0) break;
+        // Verify account readiness in activePool before starting the batch round
+        if (!config.dryRun) {
+          const verifiedPool: string[] = [];
+          for (const accId of activePool) {
+            let s = getConnectionState(accId);
+            if (s.status !== 'ready') {
+              if (s.status === 'connecting' || s.status === 'authenticated') {
+                for (let wait = 0; wait < 3; wait++) {
+                  await sleep(1500);
+                  s = getConnectionState(accId);
+                  if (s.status === 'ready') break;
+                }
+              }
+            }
+            if (s.status === 'ready') {
+              verifiedPool.push(accId);
+            } else {
+              console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Dropping from batch.`);
+              updateAccountStatus(db, accId, 'DISCONNECTED');
+            }
+          }
+          activePool = verifiedPool;
+        }
 
-          const task = claimNextContact();
-          if (!task) break;
+        if (activePool.length === 0 || taskQueue.length === 0) break;
+
+        console.log(`[Campaign ${campaignId}] --- Starting Batch Round ${roundNum} (${activePool.length} accounts firing, ${taskQueue.length} contacts remaining) ---`);
+
+        // Prepare assignments for this batch
+        interface BatchTaskAssignment {
+          accId: string;
+          accDisplayName: string;
+          task: { id: number; contact_id: number; phone: string; name: string | null };
+        }
+
+        const batchAssignments: BatchTaskAssignment[] = [];
+        for (let turn = 0; turn < msgsPerAccountPerBatch; turn++) {
+          for (const accId of activePool) {
+            if (taskQueue.length === 0) break;
+            const task = claimNextContact();
+            if (!task) break;
+            batchAssignments.push({
+              accId,
+              accDisplayName: accountNameMap.get(accId) || accId,
+              task
+            });
+          }
+          if (taskQueue.length === 0) break;
+        }
+
+        if (batchAssignments.length === 0) break;
+
+        const droppedAccountsThisRound = new Set<string>();
+
+        // Process single assignment with micro-stagger to avoid simultaneous proxy spikes
+        const executeBatchSend = async (assignment: BatchTaskAssignment, staggerMs: number) => {
+          if (staggerMs > 0 && !config.dryRun) {
+            await sleep(staggerMs);
+          }
+
+          // Check if campaign was aborted while waiting for stagger
+          const checkStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+          if (!checkStatus || checkStatus.status !== 'sending') {
+            returnContactToQueue(assignment.task);
+            return;
+          }
+
+          const { accId, accDisplayName, task } = assignment;
 
           try {
-            // Verify credit balance
             if (!isAdmin && !config.dryRun) {
               const balance = getCreditBalance(db, owner);
               const cost = getCostPerMsg(db, owner);
@@ -416,52 +500,186 @@ export async function sendCampaign(
             const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out') || errorMsg.includes('me is undefined');
 
             if (isInvalidNumber) {
-              // Unregistered number: fail contact permanently, account is good
               db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
               summary.failed++;
             } else if (isAccountIssue) {
-              // Account dropped or banned: return contact to queue for next healthy account
               console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue.`);
               returnContactToQueue(task);
               updateAccountStatus(db, accId, 'DISCONNECTED');
-              accountDropped = true;
-              break; // Stop turn for this dropped account
+              droppedAccountsThisRound.add(accId);
             } else {
               if (errorMsg.includes('credits')) {
                 returnContactToQueue(task);
-                console.warn(`[Campaign ${campaignId}] Insufficient credits. Halting campaign.`);
-                accountDropped = true;
+                console.warn(`[Campaign ${campaignId}] Insufficient credits. Halting account.`);
+                droppedAccountsThisRound.add(accId);
+              } else {
+                db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
+                summary.failed++;
+              }
+            }
+          }
+        };
+
+        // Parallel execution with 350ms micro-stagger between account calls
+        await Promise.allSettled(
+          batchAssignments.map((asgn, index) => executeBatchSend(asgn, index * 350))
+        );
+
+        // Update activePool by removing accounts that dropped in this batch
+        if (droppedAccountsThisRound.size > 0) {
+          activePool = activePool.filter(accId => !droppedAccountsThisRound.has(accId));
+          console.warn(`[Campaign ${campaignId}] Dropped ${droppedAccountsThisRound.size} accounts from batch. Remaining accounts in pool: ${activePool.length}`);
+        }
+
+        roundNum++;
+
+        // Rest period: All surviving accounts rest together before the next batch
+        if (taskQueue.length > 0 && activePool.length > 0) {
+          console.log(`[Campaign ${campaignId}] Batch round finished. All ${activePool.length} accounts resting together for ${restSec}s...`);
+          if (!config.dryRun) {
+            const endRest = Date.now() + restMs;
+            while (Date.now() < endRest) {
+              await sleep(1000);
+              const check = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+              if (!check || check.status !== 'sending') {
+                console.log(`[Campaign ${campaignId}] Campaign stopped during batch rest period.`);
                 break;
               }
-              db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
-              summary.failed++;
             }
           }
-
-          // Delay between message sends in the round-robin sequence
-          if (!config.dryRun && taskQueue.length > 0) {
-            let sleepTimeMs = 15000;
-            if (delayMode === 'old_acc') {
-              sleepTimeMs = Math.floor(120000 + Math.random() * 180000); // 2 to 5 minutes
-            } else if (delayMode === 'moderate') {
-              sleepTimeMs = Math.floor(12000 + Math.random() * 18000);   // 12 to 30 seconds
-            } else if (delayMode === 'custom') {
-              sleepTimeMs = Math.max(1000, customDelaySec * 1000);
-            } else {
-              // 'auto' mode: 10 to 18 seconds
-              sleepTimeMs = Math.floor(10000 + Math.random() * 8000);
-            }
-            await sleep(sleepTimeMs);
-          }
-        }
-
-        if (!accountDropped) {
-          nextRoundPool.push(accId);
         }
       }
+    } else {
+      // =========================================================================
+      // ROUND-ROBIN DISPATCHER (Sequential 1-by-1 or 2-by-2 rotation)
+      // =========================================================================
+      const msgsPerTurn = Math.max(1, Math.min(10, Number(rotationBatch || 1)));
 
-      activePool = nextRoundPool;
-      roundNum++;
+      console.log(`[Campaign ${campaignId}] Starting round-robin broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rotation: ${msgsPerTurn} msg/account per turn`);
+
+      while (taskQueue.length > 0 && activePool.length > 0) {
+        // Check if campaign was stopped or paused
+        const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+        if (!currentCampaign || currentCampaign.status !== 'sending') {
+          console.log(`[Campaign ${campaignId}] Campaign is no longer 'sending' (status: ${currentCampaign?.status}). Stopping rotation.`);
+          break;
+        }
+
+        console.log(`[Campaign ${campaignId}] --- Starting Round ${roundNum} (${activePool.length} active accounts, ${taskQueue.length} contacts remaining) ---`);
+
+        const nextRoundPool: string[] = [];
+
+        for (const accId of activePool) {
+          // Check if stopped between account turns
+          const checkStatus = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
+          if (!checkStatus || checkStatus.status !== 'sending') break;
+
+          if (taskQueue.length === 0) break;
+
+          const accDisplayName = accountNameMap.get(accId) || accId;
+
+          // Verify account is still ready in memory/session
+          if (!config.dryRun) {
+            let s = getConnectionState(accId);
+            if (s.status !== 'ready') {
+              if (s.status === 'connecting' || s.status === 'authenticated') {
+                for (let wait = 0; wait < 3; wait++) {
+                  await sleep(2000);
+                  s = getConnectionState(accId);
+                  if (s.status === 'ready') break;
+                }
+              }
+            }
+            if (s.status !== 'ready') {
+              console.warn(`[Campaign ${campaignId}] Account ${accId} went offline (status: ${s.status}). Dropping from rotation.`);
+              updateAccountStatus(db, accId, 'DISCONNECTED');
+              continue; // Dropped from nextRoundPool
+            }
+          }
+
+          // Healthy account: send up to msgsPerTurn (1 or 2 messages)
+          let accountDropped = false;
+          for (let turn = 0; turn < msgsPerTurn; turn++) {
+            if (taskQueue.length === 0) break;
+
+            const task = claimNextContact();
+            if (!task) break;
+
+            try {
+              // Verify credit balance
+              if (!isAdmin && !config.dryRun) {
+                const balance = getCreditBalance(db, owner);
+                const cost = getCostPerMsg(db, owner);
+                if (balance < cost) {
+                  returnContactToQueue(task);
+                  throw new Error('Insufficient credits. Please top up.');
+                }
+                if (!deductCredits(db, owner, cost)) {
+                  returnContactToQueue(task);
+                  throw new Error('Failed to deduct credits.');
+                }
+              }
+
+              const variableValues = template.personalize_name ? [task.name ?? ''] : fixedVariableValues;
+              const result = await sendCampaignMessage(accId, task.phone, template, variableValues);
+
+              db.prepare(
+                `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
+              ).run(result.id, accId, accDisplayName, task.id);
+              summary.sent++;
+            } catch (err: any) {
+              const errorMsg = err?.message || String(err);
+              const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
+              const isAccountIssue = errorMsg.includes('not ready') || errorMsg.includes('went offline') || errorMsg.includes('Target closed') || errorMsg.includes('Session closed') || errorMsg.includes('Execution context') || errorMsg.includes('timed out') || errorMsg.includes('me is undefined');
+
+              if (isInvalidNumber) {
+                // Unregistered number: fail contact permanently, account is good
+                db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
+                summary.failed++;
+              } else if (isAccountIssue) {
+                // Account dropped or banned: return contact to queue for next healthy account
+                console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue.`);
+                returnContactToQueue(task);
+                updateAccountStatus(db, accId, 'DISCONNECTED');
+                accountDropped = true;
+                break; // Stop turn for this dropped account
+              } else {
+                if (errorMsg.includes('credits')) {
+                  returnContactToQueue(task);
+                  console.warn(`[Campaign ${campaignId}] Insufficient credits. Halting campaign.`);
+                  accountDropped = true;
+                  break;
+                }
+                db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
+                summary.failed++;
+              }
+            }
+
+            // Delay between message sends in the round-robin sequence
+            if (!config.dryRun && taskQueue.length > 0) {
+              let sleepTimeMs = 15000;
+              if (delayMode === 'old_acc') {
+                sleepTimeMs = Math.floor(120000 + Math.random() * 180000); // 2 to 5 minutes
+              } else if (delayMode === 'moderate') {
+                sleepTimeMs = Math.floor(12000 + Math.random() * 18000);   // 12 to 30 seconds
+              } else if (delayMode === 'custom') {
+                sleepTimeMs = Math.max(1000, customDelaySec * 1000);
+              } else {
+                // 'auto' mode: 10 to 18 seconds
+                sleepTimeMs = Math.floor(10000 + Math.random() * 8000);
+              }
+              await sleep(sleepTimeMs);
+            }
+          }
+
+          if (!accountDropped) {
+            nextRoundPool.push(accId);
+          }
+        }
+
+        activePool = nextRoundPool;
+        roundNum++;
+      }
     }
 
     // Handle any stray contacts left in 'queued' (e.g. if ALL accounts went offline or stopped)

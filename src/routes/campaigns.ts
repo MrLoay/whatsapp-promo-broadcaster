@@ -159,7 +159,7 @@ const upload = multer({
 // One-click flow from the Home page: type a message, send to everyone
 // opted-in right now, no separate draft/review step.
 campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, res) => {
-  const { message, delayMode, customDelay, accountId, accountIds, rotationBatch } = req.body ?? {};
+  const { message, delayMode, customDelay, accountId, accountIds, rotationBatch, schedulingMode, batchRestSeconds } = req.body ?? {};
   if (!message) {
     return res.status(400).json({ error: 'message is required' });
   }
@@ -171,7 +171,21 @@ campaignsRouter.post('/campaigns/send-now', upload.single('media'), async (req, 
     const delayNum = customDelay ? Number(customDelay) : undefined;
     const targetAccounts = accountIds || accountId;
     const rotationNum = rotationBatch ? Number(rotationBatch) : 1;
-    const campaign = await sendNow(getDb(), req.session.username!, message, delayMode, delayNum, mediaPath, mimeType, targetAccounts, rotationNum);
+    const mode = (schedulingMode === 'batch_sync') ? 'batch_sync' : 'round_robin';
+    const restSec = batchRestSeconds ? Number(batchRestSeconds) : 60;
+    const campaign = await sendNow(
+      getDb(),
+      req.session.username!,
+      message,
+      delayMode,
+      delayNum,
+      mediaPath,
+      mimeType,
+      targetAccounts,
+      rotationNum,
+      mode,
+      restSec
+    );
     res.json({ started: true, campaign, ...campaign });
   } catch (err) {
     res.status(400).json({ error: (err as Error).message });
