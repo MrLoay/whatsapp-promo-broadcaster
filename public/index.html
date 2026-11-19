@@ -918,13 +918,12 @@
     }
 
     async function pollLiveProcess() {
+      // Always show the history/report panel (it starts hidden in the HTML)
+      document.getElementById('liveProcessContainer').style.display = 'block';
       try {
         const campaigns = await api('/campaigns');
         globalCampaigns = campaigns;
         renderCampaignsList(campaigns);
-
-        // Always show the history/report panel (it starts hidden in the HTML)
-        document.getElementById('liveProcessContainer').style.display = 'block';
 
         const hasActive = campaigns.some(c => c.status === 'sending' || c.status === 'draft');
         if (hasActive && !liveMonitorInterval) {
@@ -936,6 +935,10 @@
         }
       } catch (e) {
         console.error('Live monitor error', e);
+        const list = document.getElementById('liveProcessList');
+        if (list && !list.innerHTML.trim()) {
+          list.innerHTML = `<p class="muted">Could not load broadcast history: ${escapeHtml(e.message || String(e))}</p>`;
+        }
       }
     }
 
@@ -1866,6 +1869,8 @@
     // ==========================================
     // INITIALIZATION
     // ==========================================
+    // Load broadcast history right away, independent of the other startup steps
+    pollLiveProcess();
     (async () => {
       try { await renderNav('home'); } catch (e) { console.error('renderNav error', e); }
       try { await loadAccountsDropdown(); } catch (e) { console.error('loadAccountsDropdown error', e); }
