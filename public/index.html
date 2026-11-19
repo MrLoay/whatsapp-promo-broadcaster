@@ -419,6 +419,7 @@
       } else if (viewId === 'home') {
         loadStats();
         loadAccountsDropdown();
+        pollLiveProcess(); // load broadcast history/reports
       } else if (viewId === 'admin') {
         loadAdminUsers();
         initAdminEvents();
@@ -909,10 +910,11 @@
     // --- Live Process & Persistent Reports Monitoring ---
     let liveMonitorInterval = null;
     function startLiveMonitoring() {
-      if (liveMonitorInterval) return;
       document.getElementById('liveProcessContainer').style.display = 'block';
+      if (!liveMonitorInterval) {
+        liveMonitorInterval = setInterval(pollLiveProcess, 3000);
+      }
       pollLiveProcess();
-      liveMonitorInterval = setInterval(pollLiveProcess, 3000);
     }
 
     async function pollLiveProcess() {
@@ -921,8 +923,14 @@
         globalCampaigns = campaigns;
         renderCampaignsList(campaigns);
 
+        // Always show the history/report panel (it starts hidden in the HTML)
+        document.getElementById('liveProcessContainer').style.display = 'block';
+
         const hasActive = campaigns.some(c => c.status === 'sending' || c.status === 'draft');
-        if (!hasActive && liveMonitorInterval) {
+        if (hasActive && !liveMonitorInterval) {
+          // A broadcast is running (e.g. page was reloaded) -- resume live updates
+          liveMonitorInterval = setInterval(pollLiveProcess, 3000);
+        } else if (!hasActive && liveMonitorInterval) {
           clearInterval(liveMonitorInterval);
           liveMonitorInterval = null;
         }

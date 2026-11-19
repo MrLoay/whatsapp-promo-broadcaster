@@ -478,11 +478,9 @@ export async function sendCampaign(
               const balance = getCreditBalance(db, owner);
               const cost = getCostPerMsg(db, owner);
               if (balance < cost) {
-                returnContactToQueue(task);
                 throw new Error('Insufficient credits. Please top up.');
               }
               if (!deductCredits(db, owner, cost)) {
-                returnContactToQueue(task);
                 throw new Error('Failed to deduct credits.');
               }
             }
@@ -611,11 +609,9 @@ export async function sendCampaign(
                 const balance = getCreditBalance(db, owner);
                 const cost = getCostPerMsg(db, owner);
                 if (balance < cost) {
-                  returnContactToQueue(task);
                   throw new Error('Insufficient credits. Please top up.');
                 }
                 if (!deductCredits(db, owner, cost)) {
-                  returnContactToQueue(task);
                   throw new Error('Failed to deduct credits.');
                 }
               }
@@ -700,8 +696,16 @@ export async function sendCampaign(
       const finalStatus = summary.failed > 0 && summary.sent === 0 ? 'failed' : 'completed';
       db.prepare(`UPDATE campaigns SET status = ?, completed_at = datetime('now') WHERE id = ?`).run(finalStatus, campaignId);
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Fatal error in sendCampaign:', err);
+    const reason = err?.message || String(err);
+    // Record the reason on every unsent recipient so it is visible in the dashboard logs/CSV
+    try {
+      const info = db
+        .prepare(`UPDATE campaign_recipients SET status = 'failed', error = ? WHERE campaign_id = ? AND status = 'queued'`)
+        .run(reason, campaignId);
+      summary.failed += info.changes;
+    } catch {}
     db.prepare(`UPDATE campaigns SET status = 'failed', completed_at = datetime('now') WHERE id = ?`).run(campaignId);
   }
 
