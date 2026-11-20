@@ -62,6 +62,22 @@ export function getConnectionState(owner: string): {
  */
 import * as proxyChain from 'proxy-chain';
 
+/** Reduces a proxy URL to protocol://host:port so credentials never reach logs. */
+export function redactProxyUrl(proxyUrl?: string | null): string | null {
+  if (!proxyUrl) return null;
+  try {
+    const u = new URL(proxyUrl);
+    return `${u.protocol}//${u.hostname}${u.port ? ':' + u.port : ''}`;
+  } catch {
+    return '[invalid proxy url]';
+  }
+}
+
+/** Masks any user:password@ credentials embedded in free text (e.g. error messages). */
+export function redactSecrets(text: string): string {
+  return String(text).replace(/(\w+:\/\/)[^\/\s:@]+:[^\/\s@]+@/g, '$1***:***@');
+}
+
 export async function getWebJsClient(owner: string, proxyUrl?: string | null): Promise<Client> {
   const s = getSession(owner);
   if (!s.client) {
@@ -120,7 +136,7 @@ export async function getWebJsClient(owner: string, proxyUrl?: string | null): P
         console.log(`[${owner}] Proxy local anonymized bridge established: ${localBridgeUrl}`);
         puppeteerArgs.push(`--proxy-server=${localBridgeUrl}`);
       } catch (err) {
-        console.error(`[${owner}] Failed to create proxy bridge, falling back:`, err);
+        console.error(`[${owner}] Failed to create proxy bridge, falling back:`, redactSecrets((err as Error)?.message || String(err)));
         let formattedProxy = proxyUrl;
         try {
           const u = new URL(proxyUrl);

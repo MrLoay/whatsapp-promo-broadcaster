@@ -3,7 +3,7 @@ import path from 'path';
 import os from 'os';
 import type Database from 'better-sqlite3';
 import { WAState, Message } from 'whatsapp-web.js';
-import { getWebJsClient, ensureReady } from './webjs-client';
+import { getWebJsClient, ensureReady, redactProxyUrl, redactSecrets } from './webjs-client';
 import { markOptedOut } from '../services/contacts';
 import { recordDeliveryStatus } from '../services/campaigns';
 import { isOptOutMessage } from '../services/optOut';
@@ -88,7 +88,7 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
       level: 'ERROR',
       category: 'SESSION_DISCONNECTED',
       owner,
-      proxyUrl: proxyUrl || null,
+      proxyUrl: redactProxyUrl(proxyUrl),
       reason,
       message: `[${owner}] WhatsApp session disconnected. Reason: ${reason}`
     }));
@@ -137,8 +137,8 @@ function wireClientEvents(db: Database.Database, owner: string, client: any, pro
           level: 'WARN',
           category: isProxyErr ? 'PROXY_TIMEOUT' : isSocketErr ? 'SOCKET_DEAD' : 'HEARTBEAT_FAILURE',
           owner,
-          proxyUrl: proxyUrl || null,
-          error: errorMsg
+          proxyUrl: redactProxyUrl(proxyUrl),
+          error: redactSecrets(errorMsg)
         }));
       }
     }, Math.max(config.whatsapp.heartbeatIntervalMs, 90000));
@@ -222,10 +222,10 @@ export async function startWebJsListeners(db: Database.Database, owner: string, 
         level: 'ERROR',
         category: errorMsg.includes('Failed to launch') ? 'CHROMIUM_CRASH' : 'CONNECT_FAILURE',
         owner,
-        proxyUrl: proxyUrl || null,
+        proxyUrl: redactProxyUrl(proxyUrl),
         attempt,
         maxAttempts,
-        error: errorMsg
+        error: redactSecrets(errorMsg)
       }));
 
       if (attempt < maxAttempts) {
