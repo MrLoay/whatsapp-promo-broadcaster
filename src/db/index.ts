@@ -17,7 +17,21 @@ const COLUMN_MIGRATIONS: { table: string; column: string; ddl: string }[] = [
   { table: 'campaigns', column: 'batch_rest_seconds', ddl: "ALTER TABLE campaigns ADD COLUMN batch_rest_seconds INTEGER NOT NULL DEFAULT 60" },
   { table: 'campaign_recipients', column: 'account_id', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN account_id TEXT' },
   { table: 'campaign_recipients', column: 'account_name', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN account_name TEXT' },
+  // Snapshot of the recipient's phone/name so history survives contact deletion
+  { table: 'campaign_recipients', column: 'phone', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN phone TEXT' },
+  { table: 'campaign_recipients', column: 'name', ddl: 'ALTER TABLE campaign_recipients ADD COLUMN name TEXT' },
 ];
+
+/** Fills the phone/name snapshot for history rows created before those columns existed (idempotent). */
+function backfillRecipientSnapshots(db: Database.Database): void {
+  db.exec(`
+    UPDATE campaign_recipients
+       SET phone = (SELECT c.phone FROM contacts c WHERE c.id = campaign_recipients.contact_id),
+           name  = (SELECT c.name  FROM contacts c WHERE c.id = campaign_recipients.contact_id)
+     WHERE phone IS NULL
+       AND EXISTS (SELECT 1 FROM contacts c WHERE c.id = campaign_recipients.contact_id)
+  `);
+}
 
 function applyColumnMigrations(db: Database.Database): void {
   for (const { table, column, ddl } of COLUMN_MIGRATIONS) {
@@ -155,6 +169,7 @@ export function openDb(dbPath: string = config.db.path): Database.Database {
   db.exec(schema);
   applyColumnMigrations(db);
   migrateToMultiTenant(db);
+  backfillRecipientSnapshots(db);
   migrateUsersToDb(db);
   createPostMigrationIndexes(db);
   return db;

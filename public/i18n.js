@@ -133,7 +133,7 @@ const TRANSLATIONS = {
     'contacts.table.name': 'Name',
     'contacts.table.status': 'Status',
     'contacts.table.delete': 'Delete',
-    'contacts.table.deleteConfirm': 'Delete {phone}? This also removes their message history and cannot be undone.',
+    'contacts.table.deleteConfirm': 'Delete {phone}? Past broadcast reports are kept. This cannot be undone.',
     'status.messaging': 'Will message',
     'status.skipped': 'Skipped',
 
@@ -344,7 +344,7 @@ const TRANSLATIONS = {
     'contacts.table.name': 'Nama',
     'contacts.table.status': 'Status',
     'contacts.table.delete': 'Padam',
-    'contacts.table.deleteConfirm': 'Padam nombor {phone}? Ini juga akan memadam sejarah mesej mereka dan tidak boleh dibuat asal.',
+    'contacts.table.deleteConfirm': 'Padam nombor {phone}? Laporan siaran lepas dikekalkan. Tindakan ini tidak boleh dibuat asal.',
     'status.messaging': 'Akan Dihantar',
     'status.skipped': 'Dilangkau',
 
@@ -555,7 +555,7 @@ const TRANSLATIONS = {
     'contacts.table.name': '姓名',
     'contacts.table.status': '状态',
     'contacts.table.delete': '删除',
-    'contacts.table.deleteConfirm': '确定删除 {phone} 吗？这将同时清除其消息历史且无法撤销。',
+    'contacts.table.deleteConfirm': '确定删除 {phone} 吗？过往群发报告会保留。此操作无法撤销。',
     'status.messaging': '将发送',
     'status.skipped': '已跳过',
 

@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS campaign_recipients (
   read_at TEXT,
   account_id TEXT,
   account_name TEXT,
+  phone TEXT,                           -- snapshot of contacts.phone so reports survive contact deletion
+  name TEXT,                            -- snapshot of contacts.name
   UNIQUE (campaign_id, contact_id)
 );
 

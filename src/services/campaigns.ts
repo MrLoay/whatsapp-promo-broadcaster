@@ -226,7 +226,7 @@ export function getCampaignRecipients(
   const params = isAdmin ? [campaignId] : [campaignId, owner];
   return db
     .prepare(
-      `SELECT cr.id, cr.contact_id, COALESCE(ct.phone, 'Unknown') as phone, ct.name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at,
+      `SELECT cr.id, cr.contact_id, COALESCE(cr.phone, ct.phone, 'Unknown') as phone, COALESCE(cr.name, ct.name) as name, cr.status, cr.wamid, cr.error, cr.sent_at, cr.delivered_at, cr.read_at,
               cr.account_id, COALESCE(cr.account_name, acc.account_name, cr.account_id) as account_name
        FROM campaign_recipients cr
        LEFT JOIN contacts ct ON ct.id = cr.contact_id
@@ -294,15 +294,18 @@ export async function sendCampaign(
 
     // Pre-insert all candidate contacts into campaign_recipients with status 'queued'
     const insertRecipient = db.prepare(
-      `INSERT INTO campaign_recipients (campaign_id, contact_id, status)
-       VALUES (?, ?, 'queued')
+      // phone/name are saved on the history row itself so the report survives later contact deletion
+      `INSERT INTO campaign_recipients (campaign_id, contact_id, status, phone, name)
+       VALUES (?, ?, 'queued', ?, ?)
        ON CONFLICT(campaign_id, contact_id) DO UPDATE SET
          status = CASE WHEN campaign_recipients.status IN ('sent', 'delivered', 'read') THEN campaign_recipients.status ELSE 'queued' END,
-         error = NULL`
+         error = NULL,
+         phone = COALESCE(campaign_recipients.phone, excluded.phone),
+         name = COALESCE(campaign_recipients.name, excluded.name)`
     );
     const insertMany = db.transaction((contacts: Contact[]) => {
       for (const contact of contacts) {
-        insertRecipient.run(campaignId, contact.id);
+        insertRecipient.run(campaignId, contact.id, contact.phone, contact.name);
       }
     });
     insertMany(candidates);
@@ -385,6 +388,30 @@ export async function sendCampaign(
 
     let activePool = [...validAccounts];
     let roundNum = 1;
+
+    // A single browser-automation timeout (common when many accounts fire at once)
+    // must NOT permanently kick a healthy account out of the broadcast. Transient
+    // errors only drop an account after several consecutive strikes; hard errors
+    // (session closed, not ready, ...) still drop it immediately.
+    const MAX_TRANSIENT_STRIKES = 3;
+    const failStreak = new Map<string, number>();
+    const isTransientAccountError = (m: string) => m.includes('timed out') || m.includes('Execution context');
+    const isHardAccountError = (m: string) =>
+      m.includes('not ready') || m.includes('went offline') || m.includes('Target closed') ||
+      m.includes('Session closed') || m.includes('me is undefined');
+    /** Records an account-level failure; returns true if the account should be dropped from this broadcast. */
+    const registerAccountFailure = (accId: string, errorMsg: string): boolean => {
+      const strikes = (failStreak.get(accId) ?? 0) + 1;
+      failStreak.set(accId, strikes);
+      const transient = isTransientAccountError(errorMsg) && !isHardAccountError(errorMsg);
+      if (transient && strikes < MAX_TRANSIENT_STRIKES) {
+        console.warn(`[Campaign ${campaignId}] Account ${accId} hit a transient error (strike ${strikes}/${MAX_TRANSIENT_STRIKES}): ${errorMsg.slice(0, 120)}. Keeping it in the broadcast and re-queuing the contact.`);
+        return false;
+      }
+      console.warn(`[Campaign ${campaignId}] Account ${accId} dropped (${errorMsg.slice(0, 120)}).`);
+      updateAccountStatus(db, accId, 'DISCONNECTED');
+      return true;
+    };
 
     if (effectiveMode === 'batch_sync') {
       // =========================================================================
@@ -492,6 +519,7 @@ export async function sendCampaign(
               `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
             ).run(result.id, accId, accDisplayName, task.id);
             summary.sent++;
+            failStreak.delete(accId);
           } catch (err: any) {
             const errorMsg = err?.message || String(err);
             const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
@@ -501,10 +529,10 @@ export async function sendCampaign(
               db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
               summary.failed++;
             } else if (isAccountIssue) {
-              console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue.`);
               returnContactToQueue(task);
-              updateAccountStatus(db, accId, 'DISCONNECTED');
-              droppedAccountsThisRound.add(accId);
+              if (registerAccountFailure(accId, errorMsg)) {
+                droppedAccountsThisRound.add(accId);
+              }
             } else {
               if (errorMsg.includes('credits')) {
                 returnContactToQueue(task);
@@ -623,6 +651,7 @@ export async function sendCampaign(
                 `UPDATE campaign_recipients SET status = 'sent', wamid = ?, error = NULL, sent_at = datetime('now'), account_id = ?, account_name = ? WHERE id = ?`
               ).run(result.id, accId, accDisplayName, task.id);
               summary.sent++;
+              failStreak.delete(accId);
             } catch (err: any) {
               const errorMsg = err?.message || String(err);
               const isInvalidNumber = errorMsg.includes('not a registered WhatsApp number') || errorMsg.includes('is unreachable');
@@ -633,12 +662,12 @@ export async function sendCampaign(
                 db.prepare(`UPDATE campaign_recipients SET status = 'failed', error = ?, account_id = ?, account_name = ? WHERE id = ?`).run(errorMsg, accId, accDisplayName, task.id);
                 summary.failed++;
               } else if (isAccountIssue) {
-                // Account dropped or banned: return contact to queue for next healthy account
-                console.warn(`[Campaign ${campaignId}] Account ${accId} dropped or errored (${errorMsg}). Returning contact ${task.phone} to queue.`);
+                // Return the contact to the queue; only drop the account if the error is hard or keeps repeating
                 returnContactToQueue(task);
-                updateAccountStatus(db, accId, 'DISCONNECTED');
-                accountDropped = true;
-                break; // Stop turn for this dropped account
+                if (registerAccountFailure(accId, errorMsg)) {
+                  accountDropped = true;
+                }
+                break; // End this account's turn (it stays in the rotation unless dropped)
               } else {
                 if (errorMsg.includes('credits')) {
                   returnContactToQueue(task);

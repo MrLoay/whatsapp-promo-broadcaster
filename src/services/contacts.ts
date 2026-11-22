@@ -151,14 +151,31 @@ export function getContactByPhone(db: Database.Database, owner: string, phone: s
   return db.prepare('SELECT * FROM contacts WHERE owner = ? AND phone = ?').get(owner, phone) as Contact | undefined;
 }
 
-/** Deletes a contact (and its send history) -- scoped to owner so one account can't delete another's contact by guessing an id. */
+/**
+ * Deletes a contact -- scoped to owner so one account can't delete another's contact by guessing an id.
+ * Broadcast history is KEPT: the contact's phone/name are copied onto its past campaign_recipients
+ * rows first, so reports and CSV exports still show them after the contact is gone. contacts.id is
+ * AUTOINCREMENT (never reused), so the leftover contact_id on those rows can't clash with a new contact.
+ */
 export function deleteContact(db: Database.Database, owner: string, id: number): boolean {
-  const tx = db.transaction((contactId: number) => {
-    const contact = db.prepare('SELECT id FROM contacts WHERE id = ? AND owner = ?').get(contactId, owner);
-    if (!contact) return { changes: 0 };
-    db.prepare('DELETE FROM campaign_recipients WHERE contact_id = ?').run(contactId);
-    return db.prepare('DELETE FROM contacts WHERE id = ?').run(contactId);
-  });
-  const info = tx(id);
-  return info.changes > 0;
+  const contact = db.prepare('SELECT id, phone, name FROM contacts WHERE id = ? AND owner = ?').get(id, owner) as
+    | { id: number; phone: string; name: string | null }
+    | undefined;
+  if (!contact) return false;
+
+  // The history rows still point at this contact id, so FK enforcement must be paused for the delete.
+  // (PRAGMA foreign_keys cannot be changed inside a transaction.)
+  const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+  if (fkWasOn) db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE campaign_recipients SET phone = COALESCE(phone, ?), name = COALESCE(name, ?) WHERE contact_id = ?'
+      ).run(contact.phone, contact.name, id);
+      db.prepare('DELETE FROM contacts WHERE id = ?').run(id);
+    })();
+  } finally {
+    if (fkWasOn) db.pragma('foreign_keys = ON');
+  }
+  return true;
 }

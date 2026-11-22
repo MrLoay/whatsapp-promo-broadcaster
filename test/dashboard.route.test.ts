@@ -84,7 +84,7 @@ describe('dashboard-facing routes', () => {
     expect(res.body).toEqual({ disconnected: true });
   });
 
-  it('DELETE /contacts/:id removes the contact and their send history', async () => {
+  it('DELETE /contacts/:id removes the contact but keeps their send history (with phone/name)', async () => {
     const add = await agent.post('/contacts').send({ phone: '+15551234567', name: 'Alice' });
     const contactId = add.body.id;
 
@@ -96,7 +96,8 @@ describe('dashboard-facing routes', () => {
     const del = await agent.delete(`/contacts/${contactId}`);
     expect(del.status).toBe(200);
     expect(db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId)).toBeUndefined();
-    expect(db.prepare('SELECT COUNT(*) as n FROM campaign_recipients WHERE contact_id = ?').get(contactId).n).toBe(0);
+    const kept = db.prepare('SELECT phone, name FROM campaign_recipients WHERE contact_id = ?').all(contactId) as any[];
+    expect(kept).toEqual([{ phone: '+15551234567', name: 'Alice' }]);
 
     const missing = await agent.delete(`/contacts/${contactId}`);
     expect(missing.status).toBe(404);

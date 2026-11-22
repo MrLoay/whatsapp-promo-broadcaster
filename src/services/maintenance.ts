@@ -31,7 +31,7 @@ export function scheduleDbMaintenance(db: Database.Database): void {
   cron.schedule('0 3 * * *', () => {
     console.log('[MAINTENANCE] Starting scheduled database maintenance...');
     try {
-      const stats = cleanupOldLogs(db, 30);
+      const stats = cleanupOldLogs(db, 180);
       console.log(`[MAINTENANCE] Purged ${stats.deletedRecipients} old campaign recipient records and ${stats.deletedInbound} old inbound messages.`);
       vacuumDb(db);
       console.log('[MAINTENANCE] SQLite database VACUUM completed successfully.');
