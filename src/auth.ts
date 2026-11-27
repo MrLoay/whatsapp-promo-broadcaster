@@ -4,6 +4,7 @@ import { config } from './config';
 
 import { getDb } from './db';
 import { getCreditBalance } from './services/credits';
+import { getLicenseStatus } from './services/license';
 
 declare module 'express-session' {
   interface SessionData {
@@ -45,11 +46,13 @@ authRouter.get('/auth/me', (req, res) => {
     }
   }
 
-  const balance = getCreditBalance(db, req.session.username);
-  res.json({ 
+  // In license mode there is no per-message billing: no credits, but the license status instead.
+  const licenseMode = config.license.enforce;
+  res.json({
     username: req.session.username,
     role: req.session.role,
-    credits: balance
+    credits: licenseMode ? undefined : getCreditBalance(db, req.session.username),
+    license: licenseMode ? getLicenseStatus(db) : undefined
   });
 });
 

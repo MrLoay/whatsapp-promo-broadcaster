@@ -438,24 +438,26 @@
           return;
         }
         
+        // License (SaaS) mode has no per-message billing, so the credit columns/buttons are hidden
+        const billing = !window.licenseInfo;
         let html = '<table style="width:100%; border-collapse:collapse;">';
         html += `<tr>
           <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thUsername')}</th>
           <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thRole')}</th>
-          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCredits')}</th>
-          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCost')}</th>
+          ${billing ? `<th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCredits')}</th>
+          <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thCost')}</th>` : ''}
           <th style="padding:8px; border-bottom:1px solid var(--border); text-align:left;">${t('admin.thActions')}</th>
         </tr>`;
-        
+
         users.forEach(u => {
           html += `<tr>
             <td style="padding:8px; border-bottom:1px solid var(--border);">${escapeHtml(u.username)}</td>
             <td style="padding:8px; border-bottom:1px solid var(--border);">${escapeHtml(u.role)}</td>
-            <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#10b981;">${u.credits !== undefined && u.credits !== null ? Number(u.credits).toFixed(2) : '0.00'}</td>
-            <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#f59e0b;">${u.cost_per_msg !== undefined && u.cost_per_msg !== null ? Number(u.cost_per_msg).toFixed(2) : '0.13'}</td>
+            ${billing ? `<td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#10b981;">${u.credits !== undefined && u.credits !== null ? Number(u.credits).toFixed(2) : '0.00'}</td>
+            <td style="padding:8px; border-bottom:1px solid var(--border); font-weight:bold; color:#f59e0b;">${u.cost_per_msg !== undefined && u.cost_per_msg !== null ? Number(u.cost_per_msg).toFixed(2) : '0.13'}</td>` : ''}
             <td style="padding:8px; border-bottom:1px solid var(--border);">
-              <button onclick="addCredits('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px;">${t('admin.addCreditsBtn')}</button>
-              <button onclick="setCost('${escapeHtml(u.username)}', ${u.cost_per_msg ?? 0.13})" style="padding:4px 8px; font-size:11px; background:#f59e0b; color:white; border:none; border-radius:4px;">${t('admin.setCostBtn')}</button>
+              ${billing ? `<button onclick="addCredits('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px;">${t('admin.addCreditsBtn')}</button>
+              <button onclick="setCost('${escapeHtml(u.username)}', ${u.cost_per_msg ?? 0.13})" style="padding:4px 8px; font-size:11px; background:#f59e0b; color:white; border:none; border-radius:4px;">${t('admin.setCostBtn')}</button>` : ''}
               <button onclick="deleteUser('${escapeHtml(u.username)}')" style="padding:4px 8px; font-size:11px; background:var(--danger); border:none; color:white;">${t('admin.deleteBtn')}</button>
             </td>
           </tr>`;

@@ -14,7 +14,9 @@
     "import": "ts-node src/cli/import-contacts.ts",
     "send": "ts-node src/cli/send-campaign.ts",
     "whatsapp:login": "ts-node src/cli/webjs-login.ts",
-    "hash-password": "ts-node src/cli/hash-password.ts"
+    "hash-password": "ts-node src/cli/hash-password.ts",
+    "license": "node dist/cli/license.js",
+    "proxy-audit": "node dist/cli/proxy-audit.js"
   },
   "dependencies": {
     "@types/node-cron": "^3.0.11",

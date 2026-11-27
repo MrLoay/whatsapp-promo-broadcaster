@@ -5,11 +5,23 @@ import { requireAuth, requireAdmin } from '../auth';
 import { getDb } from '../db';
 import { getConnectionState, disconnect } from '../whatsapp/webjs-client';
 import { startWebJsListeners } from '../whatsapp/webjs-listeners';
-import { getAccountById, upsertAccount, listAccounts, deleteAccount } from '../services/accounts';
+import { getAccountById, upsertAccount, listAccounts, deleteAccount, type Account } from '../services/accounts';
+import { assertLicenseActive, assertCanAddAccount, LicenseError } from '../services/license';
+import { ProxyError, parseProxy, redactProxy, validateAccountProxy } from '../services/proxies';
 
 export const whatsappRouter = Router();
 whatsappRouter.use(requireAuth);
 whatsappRouter.use(requireAdmin);
+
+/** In license mode the dashboard never receives proxy credentials -- only protocol://host:port. */
+function publicProxy(proxyUrl: string | null | undefined): string | null {
+  if (!proxyUrl) return null;
+  return config.license.enforce ? redactProxy(proxyUrl) : proxyUrl;
+}
+
+function publicAccount<T extends { proxy_url?: string | null }>(acc: T): T {
+  return config.license.enforce ? { ...acc, proxy_url: publicProxy(acc.proxy_url) } : acc;
+}
 
 whatsappRouter.get('/accounts', (req, res) => {
   const db = getDb();
@@ -19,7 +31,7 @@ whatsappRouter.get('/accounts', (req, res) => {
     return {
       id: acc.id,
       account_name: acc.account_name,
-      proxy_url: acc.proxy_url,
+      proxy_url: publicProxy(acc.proxy_url),
       is_active: acc.is_active,
       status: acc.status,
       dbStatus: acc.status,
@@ -44,7 +56,7 @@ whatsappRouter.get('/whatsapp/status', async (req, res) => {
     status: state.status,
     qrDataUrl,
     error: state.error,
-    account: account ?? { id: username, account_name: username, proxy_url: null, status: 'DISCONNECTED' }
+    account: account ? publicAccount(account) : { id: username, account_name: username, proxy_url: null, status: 'DISCONNECTED' }
   });
 });
 
@@ -59,6 +71,29 @@ whatsappRouter.post('/whatsapp/connect', async (req, res) => {
   // If the account is currently disconnected or unauthenticated, clean up any stale
   // or corrupt session profile so Puppeteer can render a fresh QR code without hanging.
   const existing = getAccountById(db, accountId);
+
+  // License mode: valid license, free account slot, and a dedicated unshared proxy.
+  let proxyToSave: string | undefined = proxyUrl;
+  if (config.license.enforce) {
+    try {
+      assertLicenseActive(db);
+      if (!existing) assertCanAddAccount(db);
+
+      // The dashboard only ever sees the masked proxy (no password). A reconnect sends that masked
+      // value back, so treat "same host:port, no credentials" as "keep the saved proxy".
+      if (proxyUrl && existing?.proxy_url) {
+        const sent = parseProxy(proxyUrl);
+        if (sent && !sent.hasCredentials && redactProxy(proxyUrl) === redactProxy(existing.proxy_url)) {
+          proxyToSave = undefined;
+        }
+      }
+      validateAccountProxy(db, accountId, proxyToSave !== undefined ? proxyToSave : existing?.proxy_url);
+    } catch (err) {
+      const status = err instanceof LicenseError ? 403 : err instanceof ProxyError ? 400 : 500;
+      return res.status(status).json({ error: (err as Error).message });
+    }
+  }
+
   const state = getConnectionState(accountId);
   if ((!existing || existing.status === 'DISCONNECTED') && state.status !== 'ready' && state.status !== 'authenticated') {
     try {
@@ -68,11 +103,11 @@ whatsappRouter.post('/whatsapp/connect', async (req, res) => {
 
   const account = upsertAccount(db, accountId, {
     account_name: req.body?.account_name || accountId,
-    ...(proxyUrl !== undefined ? { proxy_url: proxyUrl } : {})
+    ...(proxyToSave !== undefined ? { proxy_url: proxyToSave } : {})
   });
 
   startWebJsListeners(db, accountId, account.proxy_url);
-  res.json({ started: true, account });
+  res.json({ started: true, account: publicAccount(account) });
 });
 
 whatsappRouter.get('/whatsapp/events', (req, res) => {
@@ -85,7 +120,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
 
   const sendStatus = async () => {
     const db = getDb();
-    const accounts = listAccounts(db);
+    const accounts = listAccounts(db).map((a) => publicAccount(a) as Account);
     const states = accounts.map((acc) => {
       const state = getConnectionState(acc.id);
       return {
@@ -113,7 +148,7 @@ whatsappRouter.get('/whatsapp/events', (req, res) => {
       status: userState.status,
       qrDataUrl,
       error: userState.error,
-      account: userAccount ?? { id: username, account_name: username, proxy_url: null, status: 'DISCONNECTED' },
+      account: userAccount ? publicAccount(userAccount) : { id: username, account_name: username, proxy_url: null, status: 'DISCONNECTED' },
     });
     res.write(`data: ${payload}\n\n`);
   };
@@ -174,7 +209,16 @@ whatsappRouter.post('/whatsapp/toggle', async (req, res) => {
   const db = getDb();
   const account = getAccountById(db, accountId);
   if (!account) return res.status(404).json({ error: 'Account not found' });
-  
+
+  // Re-activating an account uses up a licensed slot
+  if (isActive && !account.is_active) {
+    try {
+      assertCanAddAccount(db);
+    } catch (err) {
+      return res.status(err instanceof LicenseError ? 403 : 500).json({ error: (err as Error).message });
+    }
+  }
+
   upsertAccount(db, accountId, { is_active: isActive ? 1 : 0 });
   
   if (!isActive) {

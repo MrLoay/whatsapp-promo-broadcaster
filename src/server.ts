@@ -12,6 +12,8 @@ import { authRouter } from './auth';
 import { systemRouter } from './routes/system';
 import { creditsRouter } from './routes/credits';
 import { adminRouter } from './routes/admin';
+import { licenseRouter } from './routes/license';
+import { getLicenseStatus } from './services/license';
 import { scheduleDbMaintenance } from './services/maintenance';
 
 export function createApp(): Express {
@@ -100,6 +102,7 @@ export function createApp(): Express {
   app.use(systemRouter);
   app.use(creditsRouter);
   app.use(adminRouter);
+  app.use(licenseRouter);
 
   return app;
 }
@@ -112,7 +115,12 @@ if (require.main === module) {
   // Schedule automated 30-day log purge & VACUUM maintenance task
   scheduleDbMaintenance(db);
 
-  if (!config.dryRun) {
+  const licenseAtBoot = getLicenseStatus(db);
+  if (licenseAtBoot.enforced && !licenseAtBoot.active) {
+    console.warn(`[License] ${licenseAtBoot.reason === 'no_license' ? 'No license installed' : `License expired on ${licenseAtBoot.expires_at}`} -- WhatsApp sessions are NOT started. Install/renew with: npm run license, then restart.`);
+  }
+
+  if (!config.dryRun && licenseAtBoot.active) {
     // Lazy-required so a dry-run boot never pulls in Puppeteer. Each
     // configured dashboard account gets its own WhatsApp session -- if it
     // was previously linked, this resumes it automatically without a new

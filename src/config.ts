@@ -41,6 +41,12 @@ export const config = {
     messagesPerSecond: intFromEnv(process.env.MESSAGES_PER_SECOND, 5),
   },
 
+  license: {
+    // SaaS mode for a customer deployment: enforces the installed license (account limit + expiry),
+    // requires a dedicated proxy per account, hides proxy credentials, and turns off per-message credits.
+    enforce: boolFromEnv(process.env.LICENSE_ENFORCE, false),
+  },
+
   dashboard: {
     // Session cookie signing secret -- set a long random value in production.
     sessionSecret: process.env.SESSION_SECRET ?? 'dev-only-insecure-secret-change-me',

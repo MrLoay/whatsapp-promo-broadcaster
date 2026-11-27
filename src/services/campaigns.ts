@@ -6,6 +6,7 @@ import { listOptedInContacts, type Contact } from './contacts';
 import { getTemplateById, registerTemplate, type MessageTemplate } from './templates';
 import { getCreditBalance, deductCredits, getCostPerMsg } from './credits';
 import { updateAccountStatus } from './accounts';
+import { assertLicenseActive } from './license';
 
 export interface Campaign {
   id: number;
@@ -118,6 +119,9 @@ export async function sendNow(
   schedulingMode: 'round_robin' | 'batch_sync' = 'round_robin',
   batchRestSeconds: number = 60
 ): Promise<Campaign> {
+  // Refuse up front (HTTP 403 to the dashboard) if the license is missing/expired
+  assertLicenseActive(db);
+
   // Automatically prepend greeting and name if the user didn't include it
   let finalMessage = message;
   if (!finalMessage.includes('{{name}}') && !finalMessage.includes('{{1}}')) {
@@ -273,6 +277,7 @@ export async function sendCampaign(
   schedulingMode?: 'round_robin' | 'batch_sync',
   batchRestSeconds?: number
 ): Promise<SendSummary> {
+  assertLicenseActive(db);
   const campaign = getCampaignById(db, owner, campaignId);
   if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
   const template = getTemplateById(db, owner, campaign.template_id) as MessageTemplate;
@@ -424,6 +429,8 @@ export async function sendCampaign(
       console.log(`[Campaign ${campaignId}] Starting Batch-Synchronized broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rest: ${restSec}s, ${msgsPerAccountPerBatch} msg/acc/batch`);
 
       while (taskQueue.length > 0 && activePool.length > 0) {
+        assertLicenseActive(db); // a license that expires mid-broadcast stops it (reason is saved on the unsent recipients)
+
         // Check if campaign was stopped or paused
         const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
         if (!currentCampaign || currentCampaign.status !== 'sending') {
@@ -501,7 +508,7 @@ export async function sendCampaign(
           const { accId, accDisplayName, task } = assignment;
 
           try {
-            if (!isAdmin && !config.dryRun) {
+            if (!isAdmin && !config.dryRun && !config.license.enforce) {
               const balance = getCreditBalance(db, owner);
               const cost = getCostPerMsg(db, owner);
               if (balance < cost) {
@@ -584,6 +591,8 @@ export async function sendCampaign(
       console.log(`[Campaign ${campaignId}] Starting round-robin broadcast: ${activePool.length} accounts, ${taskQueue.length} contacts, rotation: ${msgsPerTurn} msg/account per turn`);
 
       while (taskQueue.length > 0 && activePool.length > 0) {
+        assertLicenseActive(db); // a license that expires mid-broadcast stops it (reason is saved on the unsent recipients)
+
         // Check if campaign was stopped or paused
         const currentCampaign = db.prepare('SELECT status FROM campaigns WHERE id = ?').get(campaignId) as { status: string } | undefined;
         if (!currentCampaign || currentCampaign.status !== 'sending') {
@@ -633,7 +642,7 @@ export async function sendCampaign(
 
             try {
               // Verify credit balance
-              if (!isAdmin && !config.dryRun) {
+              if (!isAdmin && !config.dryRun && !config.license.enforce) {
                 const balance = getCreditBalance(db, owner);
                 const cost = getCostPerMsg(db, owner);
                 if (balance < cost) {

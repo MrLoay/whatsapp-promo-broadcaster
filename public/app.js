@@ -17,6 +17,38 @@ function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/** Thin status bar under the nav: license owner, accounts used/allowed, and time left. */
+function renderLicenseBanner(nav, lic) {
+  let bar = document.getElementById('license-banner');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'license-banner';
+    nav.insertAdjacentElement('afterend', bar);
+  }
+
+  let text, bg, fg;
+  if (!lic.licensed) {
+    text = t('license.none');
+    bg = '#fee2e2'; fg = '#991b1b';
+  } else if (!lic.active) {
+    text = t('license.expired', { date: lic.expires_at });
+    bg = '#fee2e2'; fg = '#991b1b';
+  } else {
+    text = t('license.banner', {
+      customer: lic.customer_name, used: lic.used_accounts, max: lic.max_accounts,
+      date: lic.expires_at, days: lic.days_left,
+    });
+    const full = lic.used_accounts >= lic.max_accounts;
+    if (full) text += ' · ' + t('license.full');
+    const soon = lic.days_left <= 14;
+    if (soon) text += ' · ' + t('license.expiringSoon');
+    bg = (full || soon) ? '#fef3c7' : '#eef2ff';
+    fg = (full || soon) ? '#92400e' : '#3730a3';
+  }
+  bar.textContent = text;
+  bar.style.cssText = `background:${bg};color:${fg};padding:6px 16px;font-size:12px;font-weight:600;text-align:center;`;
+}
+
 const LANGUAGES = [
   ['en', 'EN'],
   ['ms', 'Bahasa Melayu'],
@@ -113,11 +145,17 @@ async function renderNav(activePage) {
         nav.querySelectorAll('.nav-tab[data-view="whatsapp"], .nav-tab[data-view="admin"]').forEach(el => el.style.display = 'inline-block');
       }
       
+      // License mode (SaaS): no per-message credits -- show the license status instead
+      window.licenseInfo = me.license || null;
+      if (me.license) renderLicenseBanner(nav, me.license);
+
       const creditBalance = document.getElementById('creditBalance');
       const creditCount = document.getElementById('creditCount');
       if (creditBalance && creditCount) {
         creditCount.textContent = (me.credits !== undefined && me.credits !== null) ? Number(me.credits).toFixed(2) : '0.00';
-        if (me.role !== 'admin') {
+        if (me.license) {
+          creditBalance.style.display = 'none';
+        } else if (me.role !== 'admin') {
           creditBalance.style.display = 'inline-block';
         } else {
           creditBalance.style.display = 'none';

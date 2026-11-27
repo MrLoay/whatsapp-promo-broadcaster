@@ -82,6 +82,24 @@ CREATE TABLE IF NOT EXISTS accounts (
 
 CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
 
+-- One license per deployment (single row). Changed ONLY by the server-side CLI (npm run license),
+-- never through the dashboard, so a customer cannot raise their own limit.
+CREATE TABLE IF NOT EXISTS license (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  customer_name TEXT NOT NULL,
+  max_accounts INTEGER NOT NULL CHECK (max_accounts >= 0),
+  expires_at TEXT NOT NULL,             -- YYYY-MM-DD, valid through the end of that day (Malaysia time)
+  note TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS license_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL DEFAULT (datetime('now')),
+  action TEXT NOT NULL,
+  detail TEXT
+);
+
 -- Indexes on the `owner` column are NOT created here on purpose: this file
 -- runs unconditionally via CREATE TABLE/INDEX IF NOT EXISTS on every boot,
 -- including against pre-existing databases from before multi-tenancy that
