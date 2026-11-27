@@ -26,13 +26,13 @@ function renderLicenseBanner(nav, lic) {
     nav.insertAdjacentElement('afterend', bar);
   }
 
-  let text, bg, fg;
+  let text, level = '';
   if (!lic.licensed) {
     text = t('license.none');
-    bg = '#fee2e2'; fg = '#991b1b';
+    level = 'bad';
   } else if (!lic.active) {
     text = t('license.expired', { date: lic.expires_at });
-    bg = '#fee2e2'; fg = '#991b1b';
+    level = 'bad';
   } else {
     text = t('license.banner', {
       customer: lic.customer_name, used: lic.used_accounts, max: lic.max_accounts,
@@ -42,11 +42,10 @@ function renderLicenseBanner(nav, lic) {
     if (full) text += ' · ' + t('license.full');
     const soon = lic.days_left <= 14;
     if (soon) text += ' · ' + t('license.expiringSoon');
-    bg = (full || soon) ? '#fef3c7' : '#eef2ff';
-    fg = (full || soon) ? '#92400e' : '#3730a3';
+    if (full || soon) level = 'warn';
   }
   bar.textContent = text;
-  bar.style.cssText = `background:${bg};color:${fg};padding:6px 16px;font-size:12px;font-weight:600;text-align:center;`;
+  bar.className = level;
 }
 
 const LANGUAGES = [
@@ -86,7 +85,7 @@ async function renderNav(activePage) {
       `<a href="javascript:void(0)" class="nav-tab ${id === currentTab ? 'active' : ''}" data-view="${id}" data-i18n="${key}" style="${id === 'whatsapp' || id === 'admin' ? 'display:none;' : ''}">${t(key) || defaultText}</a>`
     ).join('') +
     `<span class="spacer"></span>` +
-    `<span id="creditBalance" style="margin-right:15px; font-weight:bold; color:#10b981; display:none;"><span data-i18n="nav.credits">${t('nav.credits')}</span> <span id="creditCount"></span></span>` +
+    `<span id="creditBalance" style="margin-right:15px; font-weight:bold; color:var(--success); display:none;"><span data-i18n="nav.credits">${t('nav.credits')}</span> <span id="creditCount"></span></span>` +
     `<button id="themeToggleBtn" style="margin-right:10px; background:var(--card); border:1px solid var(--border); color:var(--text); cursor:pointer;" data-i18n="nav.theme">${t('nav.theme')}</button>` +
     `<select id="langSelect" style="margin-right:10px;">${langOptions}</select>` +
     `<span class="user" id="navUser"></span><button class="logout" id="logoutBtn" data-i18n="nav.logout" style="display:none;">${t('nav.logout')}</button>`;
@@ -106,8 +105,7 @@ async function renderNav(activePage) {
   const themeBtn = document.getElementById('themeToggleBtn');
   if (themeBtn) {
     themeBtn.onclick = () => {
-      const isCurrentlyDark = document.documentElement.getAttribute('data-theme') === 'dark' ||
-        (!document.documentElement.getAttribute('data-theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const isCurrentlyDark = document.documentElement.getAttribute('data-theme') !== 'light';
       const nextTheme = isCurrentlyDark ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', nextTheme);
       localStorage.setItem('theme', nextTheme);
@@ -175,8 +173,9 @@ async function renderNav(activePage) {
         banner.textContent = t('banner.dryrun');
         banner.className = 'mode-banner dryrun';
       } else {
-        banner.textContent = t('banner.live');
-        banner.className = 'mode-banner live-webjs';
+        // Live mode is the normal state; no warning bar.
+        banner.textContent = '';
+        banner.className = 'mode-banner';
       }
     }
   } catch {
