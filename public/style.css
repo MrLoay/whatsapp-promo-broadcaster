@@ -303,15 +303,66 @@ a.link:hover { text-decoration: underline; }
 }
 @keyframes qr-spin { to { transform: rotate(360deg); } }
 
-/* ---------- Small screens ---------- */
+/* ---------- Tablets & phones ---------- */
+img, video, canvas, svg { max-width: 100%; }
+html, body { max-width: 100%; overflow-x: hidden; }
+
+@media (max-width: 900px) {
+  main { padding: 24px 16px 64px; }
+  .stat-row { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+}
+
 @media (max-width: 720px) {
-  nav { padding: 8px 12px; }
-  main { padding: 18px 12px 56px; }
-  .card { padding: 16px; }
-  h1 { font-size: 22px; }
+  /* Menu: not sticky (saves screen), tabs on one scrollable row, controls underneath */
+  nav {
+    position: static; padding: 8px 12px calc(8px) 12px; gap: 6px;
+    padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right));
+  }
+  nav a { padding: 9px 12px; font-size: 13.5px; }
+  nav .spacer { display: none; }
+  nav select, nav button { min-height: 38px; }
+
+  main {
+    padding: 16px 12px 56px;
+    padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(56px, env(safe-area-inset-bottom));
+  }
+  .card { padding: 16px; border-radius: 12px; margin-bottom: 14px; }
+  h1 { font-size: 22px; margin-bottom: 14px; }
+  .stat-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px 14px; }
+  .stat .n { font-size: 24px; }
   .accounts-grid { grid-template-columns: 1fr; }
+
+  /* Wide tables scroll sideways inside themselves instead of breaking the page */
   table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-  button, select, input { min-height: 44px; }
+
+  /* Touch-friendly controls; 16px text stops iOS from zooming in when a field is tapped */
+  button, select, input, textarea { min-height: 44px; }
+  input, select, textarea { font-size: 16px !important; }
+  button { white-space: normal; line-height: 1.3; }
+  input[type="checkbox"], input[type="radio"] { min-height: 22px; width: 22px; height: 22px; }
+
+  /* Override fixed inline widths in the dashboard markup */
+  [style*="min-width"] { min-width: 0 !important; flex-basis: 100% !important; }
+  input[style*="width:"], select[style*="max-width"], #customBatchRestContainer { width: 100% !important; max-width: none !important; }
+  div[style*="display: flex"], div[style*="display:flex"], span[style*="display: flex"] { flex-wrap: wrap; }
+  form.inline > * { flex: 1 1 100%; }
+
+  .modal-backdrop { padding: 0; align-items: flex-end; }
+  .modal { max-width: none; max-height: 92vh; border-radius: 18px 18px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .login-card { padding: 22px; }
+  .qr-container img { max-width: 100%; }
+}
+
+@media (max-width: 400px) {
+  h1 { font-size: 20px; }
+  .stat .n { font-size: 22px; }
+  nav a { padding: 9px 10px; font-size: 13px; }
+}
+
+@media (hover: none) {
+  .account-card:hover, tbody tr:hover { background: inherit; }
 }
 
 /* ---------- Reduced motion ---------- */
